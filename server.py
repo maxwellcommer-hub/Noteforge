@@ -144,6 +144,48 @@ def ytdl():
 def health():
     return jsonify({'status': 'ok'})
 
+@app.route('/yttest', methods=['POST'])
+def yttest():
+    """Debug endpoint — shows full yt-dlp output for a URL"""
+    data = request.get_json()
+    url = data.get('url', 'https://www.youtube.com/watch?v=wt4af_R6iJk').strip()
+    ck = cookie_args()
+    results = []
+
+    # Test 1: list formats
+    r = subprocess.run(
+        ['yt-dlp', '--no-playlist', '--list-formats', '--no-warnings'] + ck + [url],
+        capture_output=True, text=True, timeout=30
+    )
+    results.append({
+        'test': 'list-formats',
+        'returncode': r.returncode,
+        'stdout': r.stdout[-2000:],
+        'stderr': r.stderr[-1000:],
+    })
+
+    # Test 2: get title only
+    r2 = subprocess.run(
+        ['yt-dlp', '--no-playlist', '--get-title', '--no-warnings'] + ck + [url],
+        capture_output=True, text=True, timeout=30
+    )
+    results.append({
+        'test': 'get-title',
+        'returncode': r2.returncode,
+        'stdout': r2.stdout,
+        'stderr': r2.stderr[-500:],
+    })
+
+    # Test 3: yt-dlp version
+    r3 = subprocess.run(['yt-dlp', '--version'], capture_output=True, text=True, timeout=5)
+    
+    return jsonify({
+        'ytdlp_version': r3.stdout.strip(),
+        'cookies_set': bool(ck),
+        'cookie_file_lines': len(open(COOKIES_FILE).readlines()) if os.path.exists(COOKIES_FILE) else 0,
+        'results': results,
+    })
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port)
