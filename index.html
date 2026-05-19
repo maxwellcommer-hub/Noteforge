@@ -440,6 +440,7 @@ canvas{display:block;width:100%}
     <div class="di"><span class="dk">BPM:</span><span class="dv" id="dBpm">—</span></div>
     <div class="di"><span class="dk">KEY:</span><span class="dv" id="dKey">—</span></div>
     <div class="di"><span class="dk">LEN:</span><span class="dv" id="dDur">—</span></div>
+    <div class="di"><span class="dk">AUTO:</span><span class="dv" id="dInstr" style="font-size:0.55rem">—</span></div>
   </div>
 
   <div class="bpm-row" id="bpmRow" style="display:none">
@@ -787,12 +788,16 @@ function getInstrs(){
 
 function previewInstrs(buf){
   const{melody,harmony,bass}=pickInstrs(buf);
+  // Auto-set all three dropdowns based on song analysis
   const m=document.getElementById('instrMelody');
   const h=document.getElementById('instrHarmony');
   const b=document.getElementById('instrBass');
   if(m)setSelectVal(m,melody);
   if(h)setSelectVal(h,harmony);
   if(b)setSelectVal(b,bass);
+  // Show what was picked in the detect bar
+  const instrEl=document.getElementById('dInstr');
+  if(instrEl)instrEl.textContent=melody+' / '+harmony+' / '+bass;
 }
 
 // ── After audio loads
@@ -879,24 +884,54 @@ function detectKey(buf){
 
 // ── Spectrum analysis
 function analyseSpec(buf){
-  const mono=getMono(buf),sr=buf.sampleRate,N=2048,data=mono.slice(0,N);
-  let lo=0,mid=0,hi=0,tot=0;
-  for(let k=1;k<N/2;k++){
-    const freq=k*sr/N; let re=0,im=0;
-    for(let n=0;n<Math.min(N,256);n++){const a=2*Math.PI*k*n/N;re+=data[n]*Math.cos(a);im+=data[n]*Math.sin(a);}
-    const mag=Math.sqrt(re*re+im*im);
-    if(freq<300)lo+=mag; else if(freq<2500)mid+=mag; else hi+=mag; tot+=mag;
+  const mono=getMono(buf), sr=buf.sampleRate;
+  const N=2048;
+  // Sample multiple windows across the song for a more representative spectrum
+  const stepSec=10, maxSamples=6;
+  const step=Math.round(sr*stepSec);
+  let lo=0,mid=0,hi=0,tot=0,windows=0;
+  for(let start=Math.round(sr*5); start+N<mono.length && windows<maxSamples; start+=step,windows++){
+    const data=mono.subarray(start,start+N);
+    // Check this window has content
+    let rms=0; for(let i=0;i<N;i++) rms+=data[i]*data[i];
+    if(rms/N<0.0001) continue;
+    for(let k=1;k<N/2;k++){
+      const freq=k*sr/N; let re=0,im=0;
+      for(let n=0;n<Math.min(N,512);n++){const a=2*Math.PI*k*n/N;re+=data[n]*Math.cos(a);im+=data[n]*Math.sin(a);}
+      const mag=Math.sqrt(re*re+im*im);
+      if(freq<300)lo+=mag; else if(freq<2500)mid+=mag; else hi+=mag; tot+=mag;
+    }
   }
   if(!tot)return{lo:.33,mid:.33,hi:.33};
   return{lo:lo/tot,mid:mid/tot,hi:hi/tot};
 }
+
 function pickInstrs(buf){
   const{lo,mid,hi}=analyseSpec(buf);
-  return{
-    melody: hi>.28?'bell': hi>.14?'xylophone': mid>.4?'harp': 'flute',
-    harmony: mid>.35?'guitar':'banjo',
-    bass: lo>.3?'didgeridoo':'bass'
-  };
+  // Compute spectral centroid (brightness) and bass ratio
+  const brightness=hi/(hi+mid+lo+0.001);
+  const bassHeavy=lo>0.35;
+  const midHeavy=mid>0.45;
+  const topHeavy=hi>0.25;
+
+  // Melody: match brightness to instrument character
+  // harp=warm/balanced, flute=soft/airy, xylophone=bright/percussive, bell=very bright/metallic
+  let melody;
+  if(topHeavy)       melody='bell';
+  else if(brightness>0.18) melody='xylophone';
+  else if(midHeavy)  melody='harp';
+  else               melody='flute';
+
+  // Harmony: guitar for mid-heavy songs (plucked), banjo for bright (twangy), flute for soft
+  let harmony;
+  if(topHeavy)       harmony='xylophone';
+  else if(midHeavy)  harmony='guitar';
+  else               harmony='banjo';
+
+  // Bass: didgeridoo for bass-heavy songs (deep), bass guitar otherwise
+  const bass = bassHeavy ? 'didgeridoo' : 'bass';
+
+  return{melody, harmony, bass};
 }
 
 // ── Filters
@@ -952,7 +987,7 @@ async function trackBand(abuf, sr, hopSec, smoothN, midiLo, midiHi, autoVelThres
     }
   }
   if(prev>0&&cnt>=smoothN) segments.push({timeSec:segStart,durSec:(mono.length/sr)-segStart,midi:prev,vel:Math.min(1,segMaxRms*6)});
-  return segments.filter(n=>n.durSec>=hopSec*1.5);
+  return segments.filter(n=>n.durSec>=hopSec*0.6);
 }
 
 // ── Quantise with auto-calibrated subdivision
@@ -965,7 +1000,9 @@ function quantiseAll(layers, bpm, subdiv){
     if(famName==='none') continue;
     for(const n of notes){
       const startTick=Math.round(n.timeSec/tickSec);
-      const durTicks=Math.max(1,Math.min(subdiv*8, Math.round(n.durSec/tickSec)));
+      // Cap duration: at most 1 beat (subdiv ticks) to keep notes punchy
+      // This prevents held notes from bleeding into the next note and creating mud
+      const durTicks=Math.max(1,Math.min(subdiv, Math.round(n.durSec/tickSec)));
       const variant=familyVariant(famName, n.midi);
       const k=`${startTick}|${variant.instr}|${variant.midi}`;
       if(!seen.has(k)){
@@ -1228,7 +1265,7 @@ async function doConvert(){
     showResult(bpm);
   }catch(e){
     if(stopTicker)stopTicker();$('pFill').classList.remove('active');
-    showErr('Error: '+e.message+'\n\nTip: Try Fast quality or a shorter song.');
+    showErr('Error: '+e.message+'\n\nTip: Try a shorter song or reduce note density.');
     console.error(e);
   }finally{
     $('btnGo').disabled=false;$('pg').classList.remove('on');
