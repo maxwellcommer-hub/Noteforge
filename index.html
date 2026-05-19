@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>NoteForge</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Unbounded:wght@700;900&display=swap');
+:root{
+  --bg:#08080e;--s1:#101018;--s2:#161622;--bd:#22223a;
+  --ac:#7cfc8a;--a2:#4af0a0;--a3:#00e5ff;
+  --tx:#e8e8f0;--mu:#55557a;--er:#ff4f6a;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{background:var(--bg);color:var(--tx);font-family:'Space Mono',monospace;min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:linear-gradient(rgba(124,252,138,0.018) 1px,transparent 1px),
+  linear-gradient(90deg,rgba(124,252,138,0.018) 1px,transparent 1px);
+  background-size:40px 40px}
+.wrap{max-width:700px;margin:0 auto;padding:40px 16px 80px;position:relative;z-index:1}
+
+/* Header */
+.hdr{text-align:center;margin-bottom:40px}
+.logo{font-family:'Unbounded',sans-serif;font-weight:900;font-size:clamp(2rem,7vw,3.2rem);
+  background:linear-gradient(135deg,var(--ac),var(--a3));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  line-height:1.1;margin-bottom:6px}
+.sub{color:var(--mu);font-size:0.62rem;letter-spacing:0.18em;text-transform:uppercase}
+.badge{display:inline-flex;gap:5px;background:var(--s2);border:1px solid var(--bd);
+  border-radius:4px;padding:3px 10px;font-size:0.56rem;color:var(--ac);letter-spacing:0.1em;margin-top:10px}
+
+/* Cards */
+.card{background:var(--s1);border:1px solid var(--bd);border-radius:8px;
+  padding:20px;margin-bottom:12px;position:relative;overflow:hidden}
+.card::after{content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--ac),transparent);opacity:0;transition:opacity .3s}
+.card:hover::after{opacity:1}
+.cl{font-family:'Unbounded',sans-serif;font-size:0.54rem;font-weight:700;
+  letter-spacing:0.22em;text-transform:uppercase;color:var(--ac);margin-bottom:14px}
+
+/* Tabs */
+.tabs{display:flex;border:1px solid var(--bd);border-radius:6px;overflow:hidden;margin-bottom:14px}
+.tab{flex:1;padding:10px;text-align:center;font-family:'Space Mono',monospace;
+  font-size:0.66rem;font-weight:700;letter-spacing:0.06em;cursor:pointer;
+  border:none;background:transparent;color:var(--mu);transition:all .2s;text-transform:uppercase}
+.tab.on{background:var(--s2);color:var(--ac)}
+.pane{display:none}.pane.on{display:block}
+
+/* Drop zone */
+.dz{border:2px dashed var(--bd);border-radius:6px;padding:36px 16px;
+  text-align:center;cursor:pointer;transition:all .2s;position:relative}
+.dz:hover,.dz.ov{border-color:var(--ac);background:rgba(124,252,138,0.06)}
+.dz input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.dz-icon{font-size:1.8rem;display:block;margin-bottom:7px}
+.dz-t{font-family:'Unbounded',sans-serif;font-size:0.78rem;font-weight:700;margin-bottom:3px}
+.dz-s{font-size:0.6rem;color:var(--mu)}
+
+/* File chip */
+.chip{display:none;align-items:center;gap:9px;padding:8px 12px;
+  background:var(--s2);border:1px solid var(--ac);border-radius:6px;margin-top:9px}
+.chip.on{display:flex}
+.cn{font-size:0.7rem;color:var(--ac);font-weight:700;flex:1;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px}
+.cs{font-size:0.58rem;color:var(--mu)}
+
+/* YouTube input */
+.yt-row{display:flex;gap:8px}
+.yt-in{flex:1;background:var(--s2);border:1px solid var(--bd);border-radius:6px;
+  color:var(--tx);font-family:'Space Mono',monospace;font-size:0.72rem;
+  padding:11px 12px;outline:none;transition:border-color .2s;min-width:0}
+.yt-in:focus{border-color:var(--a3)}
+.yt-in::placeholder{color:var(--mu)}
+.btn-yt{padding:11px 14px;background:#cc2222;border:none;border-radius:6px;
+  color:#fff;font-family:'Unbounded',sans-serif;font-size:0.6rem;font-weight:700;
+  letter-spacing:0.08em;cursor:pointer;transition:all .2s;white-space:nowrap;text-transform:uppercase}
+.btn-yt:hover{background:#ee2222;transform:translateY(-1px)}
+.btn-yt:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.yt-st{font-size:0.64rem;color:var(--mu);margin-top:8px;min-height:18px;line-height:1.5}
+.yt-st.ok{color:var(--ac)}.yt-st.err{color:var(--er)}.yt-st.load{color:var(--a3)}
+
+/* Detect bar */
+.dbar{display:none;flex-wrap:wrap;gap:12px;background:var(--s2);
+  border:1px solid var(--bd);border-radius:6px;padding:10px 14px;margin-top:9px}
+.dbar.on{display:flex}
+.di{display:flex;align-items:center;gap:5px;font-size:0.6rem}
+.dk{color:var(--mu);text-transform:uppercase;letter-spacing:0.06em}
+.dv{color:var(--ac);font-weight:700;font-family:'Unbounded',sans-serif;font-size:0.66rem}
+
+/* BPM row */
+.bpm-row{display:flex;align-items:center;gap:9px;margin-top:11px}
+.bpm-label{font-size:0.58rem;color:var(--mu);text-transform:uppercase;letter-spacing:0.1em;white-space:nowrap}
+.bpm-num{background:var(--s2);border:1px solid var(--bd);border-radius:5px;
+  color:var(--ac);font-family:'Unbounded',sans-serif;font-size:0.85rem;font-weight:700;
+  padding:7px 9px;width:76px;outline:none;text-align:center;transition:border-color .2s}
+.bpm-num:focus{border-color:var(--ac)}
+.bpm-sl{flex:1;-webkit-appearance:none;height:3px;background:var(--bd);
+  border-radius:2px;outline:none;cursor:pointer;min-width:0}
+.bpm-sl::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;
+  background:var(--ac);border-radius:50%;cursor:pointer}
+.btn-tap{padding:8px 13px;background:var(--s2);border:1px solid var(--bd);border-radius:5px;
+  font-family:'Space Mono',monospace;font-size:0.62rem;font-weight:700;color:var(--mu);
+  cursor:pointer;transition:all .2s;white-space:nowrap;-webkit-user-select:none;user-select:none}
+.btn-tap:active,.btn-tap.hit{border-color:var(--ac);color:var(--ac);background:rgba(124,252,138,0.08)}
+
+/* Instrument chips */
+.il{font-size:0.57rem;color:var(--mu);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;margin-top:11px}
+.ics{display:flex;flex-wrap:wrap;gap:5px}
+.ic{padding:3px 8px;border-radius:4px;font-size:0.58rem;font-weight:700;border:1px solid}
+.ic.m{background:rgba(124,252,138,0.08);border-color:var(--ac);color:var(--ac)}
+.ic.h{background:rgba(0,229,255,0.07);border-color:var(--a3);color:var(--a3)}
+.ic.b{background:rgba(74,240,160,0.07);border-color:var(--a2);color:var(--a2)}
+
+/* Quality */
+.qr{display:flex;gap:7px}
+.qb{flex:1;padding:9px 4px;background:var(--s2);border:1px solid var(--bd);border-radius:5px;
+  font-family:'Space Mono',monospace;font-size:0.58rem;font-weight:700;color:var(--mu);
+  cursor:pointer;transition:all .2s;text-align:center;text-transform:uppercase;letter-spacing:0.04em}
+.qb.sel{background:rgba(124,252,138,0.07);border-color:var(--ac);color:var(--ac)}
+
+/* Convert button */
+.btn-go{width:100%;padding:14px;background:linear-gradient(135deg,var(--ac),var(--a2));
+  border:none;border-radius:6px;color:#040410;font-family:'Unbounded',sans-serif;
+  font-size:0.76rem;font-weight:900;letter-spacing:0.1em;text-transform:uppercase;
+  cursor:pointer;transition:all .2s;margin-bottom:12px;-webkit-appearance:none}
+.btn-go:disabled{opacity:0.28;cursor:not-allowed}
+.btn-go:not(:disabled):active{transform:scale(0.98)}
+
+/* Progress */
+.pg{display:none;margin-bottom:12px}
+.pg.on{display:block}
+.ph{display:flex;justify-content:space-between;font-size:0.58rem;color:var(--mu);margin-bottom:5px}
+.pb{height:5px;background:var(--bd);border-radius:3px;overflow:hidden;margin-bottom:10px}
+.pf{height:100%;background:linear-gradient(90deg,var(--ac),var(--a3));border-radius:3px;width:0%;transition:width .4s ease}
+.stgs{display:flex;flex-direction:column;gap:4px}
+.st{display:flex;align-items:center;gap:7px;font-size:0.6rem;color:var(--mu);transition:color .2s}
+.st.a{color:var(--ac)}.st.d{color:#1e1e32}
+.sd{width:4px;height:4px;border-radius:50%;background:var(--bd);flex-shrink:0;transition:background .2s}
+.st.a .sd{background:var(--ac);animation:bl 1s infinite}.st.d .sd{background:#1e2e1e}
+@keyframes bl{0%,100%{opacity:1}50%{opacity:.15}}
+
+/* Error */
+.er{display:none;background:rgba(255,79,106,0.07);border:1px solid var(--er);
+  border-radius:6px;padding:9px 13px;font-size:0.65rem;color:var(--er);
+  margin-bottom:12px;line-height:1.6;white-space:pre-wrap}
+.er.on{display:block}
+
+/* Result */
+.res{display:none;background:var(--s1);border:1px solid var(--ac);border-radius:8px;
+  padding:20px;box-shadow:0 0 36px rgba(124,252,138,0.055)}
+.res.on{display:block}
+.rh{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px}
+.rt{font-family:'Unbounded',sans-serif;font-size:0.75rem;font-weight:700;color:var(--ac)}
+.rb{font-size:0.54rem;background:rgba(124,252,138,0.07);border:1px solid var(--ac);
+  color:var(--ac);padding:2px 7px;border-radius:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+.viz{background:var(--s2);border:1px solid var(--bd);border-radius:6px;padding:10px;margin-bottom:14px}
+canvas{display:block;width:100%;border-radius:3px}
+#cvW{height:56px}#cvR{height:88px;margin-top:7px}
+
+/* Player */
+.plr{display:flex;align-items:center;gap:9px;margin-bottom:12px}
+.bpl{width:42px;height:42px;border-radius:50%;background:var(--ac);border:none;
+  color:#040410;font-size:1rem;cursor:pointer;display:flex;align-items:center;
+  justify-content:center;transition:all .2s;flex-shrink:0;-webkit-appearance:none}
+.bpl:active{transform:scale(0.9)}
+.pm{flex:1;min-width:0}
+.tbg{height:5px;background:var(--bd);border-radius:3px;cursor:pointer;position:relative}
+.tfi{height:100%;background:linear-gradient(90deg,var(--ac),var(--a3));
+  border-radius:3px;width:0%;pointer-events:none;transition:width .1s linear}
+.tl{display:flex;justify-content:space-between;font-size:0.54rem;color:var(--mu);margin-top:3px}
+.vr{display:flex;align-items:center;gap:5px;font-size:0.6rem;color:var(--mu);flex-shrink:0}
+.vr input{width:60px;-webkit-appearance:none;height:3px;background:var(--bd);
+  border-radius:2px;outline:none;cursor:pointer}
+.vr input::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;
+  background:var(--ac);border-radius:50%}
+
+/* Download */
+.dlr{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.bd{padding:10px;border-radius:5px;border:1px solid;font-family:'Space Mono',monospace;
+  font-size:0.62rem;font-weight:700;cursor:pointer;transition:all .2s;
+  text-align:center;text-transform:uppercase;-webkit-appearance:none}
+.bw{background:rgba(124,252,138,0.06);border-color:var(--ac);color:var(--ac)}
+.bn{background:rgba(0,229,255,0.05);border-color:var(--a3);color:var(--a3)}
+.bd:active{transform:scale(0.97)}
+
+/* Stats */
+.sts{display:flex;gap:10px;padding-top:12px;border-top:1px solid var(--bd)}
+.sta{flex:1;text-align:center}
+.sv{font-family:'Unbounded',sans-serif;font-size:0.88rem;font-weight:700;color:var(--ac)}
+.sl{font-size:0.5rem;color:var(--mu);text-transform:uppercase;letter-spacing:0.07em;margin-top:1px}
+
+.inf{background:rgba(0,229,255,0.03);border:1px solid rgba(0,229,255,0.11);
+  border-radius:6px;padding:10px 13px;font-size:0.6rem;color:var(--mu);
+  line-height:1.85;margin-top:12px}
+.inf strong{color:var(--a3)}
+.ft{text-align:center;margin-top:28px;font-size:0.53rem;color:var(--mu);letter-spacing:0.1em}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="hdr">
+  <div class="logo">NoteForge</div>
+  <div class="sub">MP3 / YouTube → Minecraft Note Blocks</div>
+  <div class="badge">⛏ Real MC Sounds · Multi-Instrument · Auto BPM</div>
+</div>
+
+<!-- Source -->
+<div class="card">
+  <div class="cl">01 — Source</div>
+  <div class="tabs">
+    <button class="tab on" onclick="switchTab('mp3')">🎵 MP3 Upload</button>
+    <button class="tab" onclick="switchTab('yt')">▶ YouTube</button>
+  </div>
+
+  <!-- MP3 pane -->
+  <div class="pane on" id="pane-mp3">
+    <div class="dz" id="dz">
+      <input type="file" id="fi" accept=".mp3,audio/mpeg">
+      <span class="dz-icon">🎧</span>
+      <div class="dz-t">Drop MP3 or tap to browse</div>
+      <div class="dz-s">All processing runs on the server</div>
+    </div>
+    <div class="chip" id="chip"><span>🎵</span><span class="cn" id="cn"></span><span class="cs" id="cs"></span></div>
+  </div>
+
+  <!-- YouTube pane -->
+  <div class="pane" id="pane-yt">
+    <div class="yt-row">
+      <input class="yt-in" id="ytUrl" type="url" placeholder="https://www.youtube.com/watch?v=...">
+      <button class="btn-yt" id="btnYt" onclick="fetchYt()">Fetch</button>
+    </div>
+    <div class="yt-st" id="ytSt"></div>
+  </div>
+
+  <!-- Detect bar (shown after load) -->
+  <div class="dbar" id="dbar">
+    <div class="di"><span class="dk">BPM</span><span class="dv" id="dBpm">—</span></div>
+    <div class="di"><span class="dk">Key</span><span class="dv" id="dKey">—</span></div>
+    <div class="di"><span class="dk">Duration</span><span class="dv" id="dDur">—</span></div>
+  </div>
+
+  <!-- BPM override -->
+  <div class="bpm-row" id="bpmRow" style="display:none">
+    <span class="bpm-label">BPM</span>
+    <input class="bpm-num" id="bpmNum" type="number" min="40" max="300" value="120">
+    <input class="bpm-sl" id="bpmSl" type="range" min="40" max="300" value="120">
+    <button class="btn-tap" id="tapBtn" onclick="tap()">TAP</button>
+  </div>
+
+  <!-- Instrument preview -->
+  <div id="instrWrap" style="display:none">
+    <div class="il">Detected instrument layers</div>
+    <div class="ics" id="ics"></div>
+  </div>
+</div>
+
+<!-- Quality -->
+<div class="card">
+  <div class="cl">02 — Quality</div>
+  <div class="qr">
+    <div class="qb" onclick="setQ('fast')">⚡ Fast<br><small style="opacity:.6;font-size:.55rem">~5s</small></div>
+    <div class="qb sel" onclick="setQ('balanced')">⚖ Balanced<br><small style="opacity:.6;font-size:.55rem">~20s</small></div>
+    <div class="qb" onclick="setQ('best')">✦ Best<br><small style="opacity:.6;font-size:.55rem">~60s</small></div>
+  </div>
+</div>
+
+<button class="btn-go" id="btnGo" disabled onclick="doConvert()">▶ Convert to Note Blocks</button>
+
+<!-- Progress -->
+<div class="pg" id="pg">
+  <div class="ph"><span id="pLbl">Starting…</span><span id="pPct">0%</span></div>
+  <div class="pb"><div class="pf" id="pFill"></div></div>
+  <div class="stgs">
+    <div class="st" id="s1"><div class="sd"></div>Decoding audio</div>
+    <div class="st" id="s2"><div class="sd"></div>Detecting BPM (multi-resolution autocorrelation)</div>
+    <div class="st" id="s3"><div class="sd"></div>Separating melody / harmony / bass bands</div>
+    <div class="st" id="s4"><div class="sd"></div>YIN pitch tracking — melody</div>
+    <div class="st" id="s5"><div class="sd"></div>YIN pitch tracking — harmony & bass</div>
+    <div class="st" id="s6"><div class="sd"></div>Quantising to BPM grid</div>
+    <div class="st" id="s7"><div class="sd"></div>Synthesising with Minecraft note block sounds</div>
+    <div class="st" id="s8"><div class="sd"></div>Mixing & mastering</div>
+  </div>
+</div>
+<div class="er" id="er"></div>
+
+<!-- Result -->
+<div class="res" id="res">
+  <div class="rh">
+    <div class="rt">✓ Done</div>
+    <div class="rb" id="rBadge">—</div>
+  </div>
+  <div class="viz">
+    <canvas id="cvW" width="668" height="56"></canvas>
+    <canvas id="cvR" width="668" height="88"></canvas>
+  </div>
+  <div class="plr">
+    <button class="bpl" id="bPlay" onclick="togglePlay()">▶</button>
+    <div class="pm">
+      <div class="tbg" id="tbg"><div class="tfi" id="tfi"></div></div>
+      <div class="tl"><span id="tCur">0:00</span><span id="tTot">0:00</span></div>
+    </div>
+    <div class="vr">🔊<input type="range" id="vol" min="0" max="100" value="85" oninput="setVol(this.value)"></div>
+  </div>
+  <div class="dlr">
+    <button class="bd bw" onclick="dlWav()">⬇ WAV</button>
+    <button class="bd bn" onclick="dlNbs()">⬇ NBS</button>
+  </div>
+  <div class="sts">
+    <div class="sta"><div class="sv" id="stN">—</div><div class="sl">Notes</div></div>
+    <div class="sta"><div class="sv" id="stB">—</div><div class="sl">BPM</div></div>
+    <div class="sta"><div class="sv" id="stD">—</div><div class="sl">Duration</div></div>
+    <div class="sta"><div class="sv" id="stL">—</div><div class="sl">Layers</div></div>
+  </div>
+</div>
+
+<div class="inf">
+  <strong>Real MC sounds:</strong> Official Minecraft Java Edition note block .ogg files are loaded from the server and pitched via the Web Audio API's detune parameter — exactly how the game works. <strong>YouTube:</strong> yt-dlp extracts the audio stream server-side, no copyright issues on your end. <strong>BPM:</strong> Multi-resolution onset autocorrelation with half/double-tempo correction — override manually if needed.
+</div>
+<div class="ft">NoteForge · Hosted on Railway</div>
+</div>
+
+<script>
+// ── Instrument synthesis (fallback if MC samples not loaded yet)
+const SYNTH = {
+  harp:      {osc:[{t:'triangle',g:.7,d:0},{t:'sine',g:.3,d:.5},{t:'sine',g:.1,d:12}],          atk:.003,dec:.18,sus:.04,rel:.55, ff:5000,fq:.8,  ft:'lowpass'},
+  bass:      {osc:[{t:'sawtooth',g:.55,d:0},{t:'sine',g:.45,d:-12},{t:'triangle',g:.15,d:.3}],  atk:.008,dec:.25,sus:.35,rel:.6,  ff:700, fq:1.5, ft:'lowpass'},
+  bell:      {osc:[{t:'sine',g:.8,d:0},{t:'sine',g:.3,d:24},{t:'sine',g:.12,d:19}],             atk:.001,dec:1.1, sus:.01,rel:1.4, ff:400, fq:.5,  ft:'highpass'},
+  guitar:    {osc:[{t:'sawtooth',g:.5,d:0},{t:'triangle',g:.4,d:.4},{t:'sine',g:.1,d:-12}],     atk:.004,dec:.14,sus:.18,rel:.5,  ff:3200,fq:2.2, ft:'lowpass'},
+  flute:     {osc:[{t:'sine',g:.75,d:0},{t:'triangle',g:.2,d:.2}],                               atk:.045,dec:.08,sus:.65,rel:.35, ff:3000,fq:.4,  ft:'bandpass'},
+  xylophone: {osc:[{t:'triangle',g:.7,d:0},{t:'sine',g:.25,d:19},{t:'sine',g:.1,d:28}],         atk:.001,dec:.22,sus:.01,rel:.35, ff:600, fq:.6,  ft:'highpass'},
+  banjo:     {osc:[{t:'triangle',g:.6,d:0},{t:'sawtooth',g:.25,d:.6},{t:'sine',g:.15,d:12}],    atk:.003,dec:.18,sus:.12,rel:.45, ff:4500,fq:1.8, ft:'lowpass'},
+  bit:       {osc:[{t:'square',g:.65,d:0},{t:'square',g:.2,d:12}],                               atk:.001,dec:.04,sus:.75,rel:.06, ff:2800,fq:.8,  ft:'lowpass'},
+  chime:     {osc:[{t:'sine',g:.7,d:0},{t:'sine',g:.2,d:24},{t:'sine',g:.08,d:31}],             atk:.001,dec:1.6, sus:.005,rel:1.8, ff:1000,fq:1.0, ft:'highpass'},
+  didgeridoo:{osc:[{t:'sawtooth',g:.5,d:0},{t:'sawtooth',g:.3,d:-12},{t:'sine',g:.2,d:-24}],   atk:.015,dec:.4, sus:.6, rel:.3,  ff:380, fq:2.5, ft:'lowpass'},
+  pling:     {osc:[{t:'sawtooth',g:.55,d:0},{t:'sine',g:.35,d:0}],                               atk:.001,dec:.09,sus:.55,rel:.28, ff:5500,fq:3.5, ft:'lowpass'},
+};
+
+const NB_MIN=42, NB_MAX=66;
+const SAMPLE_MIDI=54; // MC samples recorded at F#4
+
+let audioCtx=null, srcBuf=null, rendBuf=null, allNotes=[];
+let detBpm=120, useBpm=120, quality='balanced', srcName='song';
+let playSource=null, gainNode=null, isPlaying=false;
+let playStart=0, playOffset=0, rafId=null;
+let wavBlob=null, nbsBlob=null;
+let sampleBufs={};
+let tapTimes=[], lastTap=0;
+
+const $=id=>document.getElementById(id);
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const fmt=s=>{const m=Math.floor(s/60);return m+':'+(Math.floor(s%60)+'').padStart(2,'0');};
+function showErr(m){const e=$('er');e.textContent=m;e.classList.add('on');}
+function hideErr(){$('er').classList.remove('on');}
+function ensureCtx(){if(!audioCtx||audioCtx.state==='closed')audioCtx=new(window.AudioContext||window.webkitAudioContext)();}
+
+// ── Tab switch
+function switchTab(t){
+  document.querySelectorAll('.tab').forEach((b,i)=>b.classList.toggle('on',i===(t==='mp3'?0:1)));
+  $('pane-mp3').classList.toggle('on',t==='mp3');
+  $('pane-yt').classList.toggle('on',t==='yt');
+}
+
+// ── Quality
+function setQ(q){quality=q;document.querySelectorAll('.qb').forEach((b,i)=>b.classList.toggle('sel',['fast','balanced','best'][i]===q));}
+
+// ── BPM sync
+$('bpmNum').addEventListener('input',e=>{const v=Math.max(40,Math.min(300,+e.target.value||120));$('bpmSl').value=v;useBpm=v;});
+$('bpmSl').addEventListener('input',e=>{$('bpmNum').value=e.target.value;useBpm=+e.target.value;});
+
+// ── Tap tempo
+function tap(){
+  const now=performance.now();
+  if(now-lastTap>2500)tapTimes=[];
+  tapTimes.push(now);lastTap=now;
+  if(tapTimes.length>1){
+    let sum=0;for(let i=1;i<tapTimes.length;i++)sum+=tapTimes[i]-tapTimes[i-1];
+    const bpm=Math.min(300,Math.max(40,Math.round(60000/(sum/(tapTimes.length-1)))));
+    $('bpmNum').value=bpm;$('bpmSl').value=bpm;useBpm=bpm;
+  }
+  const b=$('tapBtn');b.classList.add('hit');setTimeout(()=>b.classList.remove('hit'),100);
+}
+
+// ── Stage progress
+function stg(id,pct,lbl){
+  document.querySelectorAll('.st').forEach(s=>{
+    if(s.id===id){s.classList.add('a');s.classList.remove('d');}
+    else if(s.classList.contains('a')){s.classList.remove('a');s.classList.add('d');}
+  });
+  $('pFill').style.width=pct+'%';$('pLbl').textContent=lbl;$('pPct').textContent=pct+'%';
+  return sleep(10);
+}
+
+// ── File input
+$('fi').addEventListener('change',e=>loadFile(e.target.files[0]));
+const dz=$('dz');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('ov');});
+dz.addEventListener('dragleave',()=>dz.classList.remove('ov'));
+dz.addEventListener('drop',e=>{
+  e.preventDefault();dz.classList.remove('ov');
+  const f=e.dataTransfer.files[0];
+  if(f&&(f.type==='audio/mpeg'||f.name.endsWith('.mp3')))loadFile(f);
+  else showErr('Please use an MP3 file.');
+});
+
+async function loadFile(f){
+  if(!f)return;
+  hideErr();
+  srcName=f.name.replace(/\.mp3$/i,'');
+  $('cn').textContent=f.name;$('cs').textContent=(f.size/1024/1024).toFixed(2)+' MB';
+  $('chip').classList.add('on');
+  $('res').classList.remove('on');
+  const reader=new FileReader();
+  reader.onload=async ev=>{
+    try{
+      ensureCtx();
+      srcBuf=await audioCtx.decodeAudioData(ev.target.result.slice(0));
+      await afterLoad();
+    }catch(e){showErr('Could not decode MP3: '+e.message);}
+  };
+  reader.readAsArrayBuffer(f);
+}
+
+// ── YouTube fetch via server
+async function fetchYt(){
+  const url=$('ytUrl').value.trim();
+  if(!url){ytStatus('Enter a YouTube URL','err');return;}
+  if(!url.includes('youtube.com')&&!url.includes('youtu.be')){ytStatus('Not a YouTube URL','err');return;}
+  $('btnYt').disabled=true;
+  ytStatus('Fetching audio via server…','load');
+  try{
+    const res=await fetch('/ytdl',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({url})
+    });
+    const data=await res.json();
+    if(!res.ok||data.error)throw new Error(data.error||'Server error');
+    ytStatus('Downloading audio stream…','load');
+    const audioRes=await fetch(data.url);
+    if(!audioRes.ok)throw new Error('Audio stream failed: '+audioRes.status);
+    const ab=await audioRes.arrayBuffer();
+    ensureCtx();
+    ytStatus('Decoding…','load');
+    srcBuf=await audioCtx.decodeAudioData(ab);
+    srcName=data.title||'youtube';
+    ytStatus('✓ Loaded: '+data.title,'ok');
+    $('res').classList.remove('on');
+    await afterLoad();
+  }catch(e){
+    ytStatus('Failed: '+e.message,'err');
+    console.error(e);
+  }finally{
+    $('btnYt').disabled=false;
+  }
+}
+function ytStatus(msg,cls){const e=$('ytSt');e.textContent=msg;e.className='yt-st'+(cls?' '+cls:'');}
+
+// ── Load MC samples from server
+async function loadMCSamples(instrs){
+  // Check which sounds the server has
+  let available=[];
+  try{
+    const r=await fetch('/sounds-list');
+    const d=await r.json();
+    available=d.sounds||[];
+  }catch(e){console.warn('Could not list sounds:',e);}
+
+  for(const instr of instrs){
+    if(sampleBufs[instr])continue;
+    const fname=instr+'.ogg';
+    if(!available.includes(fname)){console.log('No server sample for',instr,'— using synthesis');continue;}
+    try{
+      const r=await fetch('/sounds/'+fname);
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      const ab=await r.arrayBuffer();
+      sampleBufs[instr]=await audioCtx.decodeAudioData(ab);
+      console.log('Loaded MC sample:',instr);
+    }catch(e){console.warn('Sample load failed:',instr,e.message);}
+  }
+}
+
+// ── After audio is loaded: detect BPM + key + instruments
+async function afterLoad(){
+  if(!srcBuf)return;
+  $('dDur').textContent=fmt(srcBuf.duration);
+  const bpm=await detectBpm(srcBuf);
+  detBpm=bpm; useBpm=bpm;
+  $('dBpm').textContent=Math.round(bpm*10)/10+' BPM';
+  $('dKey').textContent=detectKey(srcBuf);
+  $('dbar').classList.add('on');
+  $('bpmNum').value=Math.round(bpm);
+  $('bpmSl').value=Math.round(bpm);
+  $('bpmRow').style.display='flex';
+  previewInstrs(srcBuf);
+  $('instrWrap').style.display='block';
+  $('btnGo').disabled=false;
+}
+
+// ── BPM Detection — improved multi-resolution with octave correction
+async function detectBpm(buf){
+  const sr=buf.sampleRate;
+  const mono=getMono(buf);
+  // Use up to 90s
+  const use=Math.min(mono.length, sr*90);
+  const data=mono.subarray(0,use);
+
+  // Compute onset envelope at 200fps
+  const fps=200;
+  const hop=Math.round(sr/fps);
+  const win=hop*2;
+  const env=[];
+  for(let i=0;i+win<data.length;i+=hop){
+    let e=0;for(let j=0;j<win;j++)e+=data[i+j]*data[i+j];
+    env.push(Math.sqrt(e/win));
+  }
+
+  // Onset strength = half-wave rectified 1st derivative
+  const odf=new Float32Array(env.length);
+  for(let i=3;i<env.length;i++){
+    const d=env[i]-env[i-1];
+    odf[i]=d>0?d:0;
+  }
+
+  // Tempo candidates via autocorrelation, weighted by musical priors
+  // BPM range 50–250, but bias hard toward 70–180
+  const candidates=[];
+  for(let bpm=50;bpm<=250;bpm+=0.25){
+    const lag=fps*60/bpm;
+    const lagI=Math.round(lag);
+    if(lagI<2||lagI>=odf.length-2)continue;
+
+    // Main periodicity
+    let score=0;
+    const lim=Math.min(odf.length-lagI, Math.ceil(fps*60));
+    for(let i=0;i<lim;i++)score+=odf[i]*odf[i+lagI];
+    score/=lim;
+
+    // Bonus: also matches at 2x and 0.5x (musical meter)
+    const lag2=lagI*2;
+    if(lag2<odf.length){
+      let s2=0,c2=0;
+      for(let i=0;i+lag2<odf.length&&i<lim;i++){s2+=odf[i]*odf[i+lag2];c2++;}
+      if(c2>0)score+=0.5*(s2/c2);
+    }
+    const lagH=Math.round(lagI/2);
+    if(lagH>1){
+      let sh=0,ch=0;
+      for(let i=0;i+lagH<odf.length&&i<lim;i++){sh+=odf[i]*odf[i+lagH];ch++;}
+      if(ch>0)score+=0.3*(sh/ch);
+    }
+
+    // Musical prior: boost 70-180 range
+    const prior=bpm>=70&&bpm<=180?1.2:bpm>=60&&bpm<=200?1.0:0.7;
+    candidates.push({bpm,score:score*prior});
+  }
+
+  candidates.sort((a,b)=>b.score-a.score);
+
+  // Resolve octave ambiguity: pick lowest BPM within 30% of top score
+  // that is in the musically preferred range
+  const topScore=candidates[0]?.score||1;
+  const good=candidates.filter(c=>c.score>=topScore*0.7&&c.bpm>=60&&c.bpm<=200);
+  // Among good candidates, prefer the one closest to 120 BPM as tiebreak
+  good.sort((a,b)=>Math.abs(a.bpm-120)-Math.abs(b.bpm-120));
+  const raw=(good[0]||candidates[0]).bpm;
+
+  // Round to nearest 0.5 BPM
+  return Math.round(raw*2)/2;
+}
+
+// ── Key detection
+function detectKey(buf){
+  const mono=getMono(buf),sr=buf.sampleRate;
+  const chroma=new Float32Array(12).fill(0);
+  const chunk=512,step=Math.round(sr*0.08);
+  const lim=Math.min(mono.length,sr*30);
+  for(let pos=0;pos+chunk<lim;pos+=step){
+    for(let m=48;m<=84;m++){
+      const f=440*Math.pow(2,(m-69)/12),ph=2*Math.PI*f/sr;
+      let re=0,im=0;
+      for(let n=0;n<chunk;n++){re+=mono[pos+n]*Math.cos(ph*n);im+=mono[pos+n]*Math.sin(ph*n);}
+      chroma[m%12]+=Math.sqrt(re*re+im*im);
+    }
+  }
+  const notes=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const maj=[6.35,2.23,3.48,2.33,4.38,4.09,2.52,5.19,2.39,3.66,2.29,2.88];
+  const min=[6.33,2.68,3.52,5.38,2.60,3.53,2.54,4.75,3.98,2.69,3.34,3.17];
+  let best='C',sc=-Infinity;
+  for(let t=0;t<12;t++){
+    for(const[p,sfx]of[[maj,''],[min,'m']]){
+      let s=0;for(let i=0;i<12;i++)s+=chroma[(i+t)%12]*p[i];
+      if(s>sc){sc=s;best=notes[t]+sfx;}
+    }
+  }
+  return best;
+}
+
+// ── Spectrum analysis
+function analyseSpec(buf){
+  const mono=getMono(buf),sr=buf.sampleRate,N=2048,data=mono.slice(0,N);
+  let lo=0,mid=0,hi=0,tot=0;
+  for(let k=1;k<N/2;k++){
+    const freq=k*sr/N;let re=0,im=0;
+    for(let n=0;n<Math.min(N,256);n++){const a=2*Math.PI*k*n/N;re+=data[n]*Math.cos(a);im+=data[n]*Math.sin(a);}
+    const mag=Math.sqrt(re*re+im*im);
+    if(freq<300)lo+=mag;else if(freq<2500)mid+=mag;else hi+=mag;tot+=mag;
+  }
+  if(!tot)return{lo:.33,mid:.33,hi:.33};
+  return{lo:lo/tot,mid:mid/tot,hi:hi/tot};
+}
+
+function pickInstrs(buf){
+  const{lo,mid,hi}=analyseSpec(buf);
+  const melody=hi>.28?'bell':hi>.14?'xylophone':mid>.4?'harp':'flute';
+  const harmony=mid>.35?'guitar':'banjo';
+  const bass=lo>.3?'didgeridoo':'bass';
+  return{melody,harmony,bass};
+}
+
+function previewInstrs(buf){
+  const{melody,harmony,bass}=pickInstrs(buf);
+  const c=$('ics');c.innerHTML='';
+  [{t:'♪ '+melody,cls:'m'},{t:'♫ '+harmony,cls:'h'},{t:'♩ '+bass,cls:'b'}].forEach(({t,cls})=>{
+    const d=document.createElement('div');d.className='ic '+cls;d.textContent=t;c.appendChild(d);
+  });
+}
+
+// ── Filters
+function lpf(sig,sr,fc){
+  const a=1/(1+1/(2*Math.PI*(fc/sr)));
+  const o=new Float32Array(sig.length);o[0]=sig[0];
+  for(let i=1;i<sig.length;i++)o[i]=a*o[i-1]+(1-a)*sig[i];
+  return o;
+}
+function hpf(sig,sr,fc){
+  const a=1/(1+2*Math.PI*(fc/sr));
+  const o=new Float32Array(sig.length);o[0]=sig[0];
+  for(let i=1;i<sig.length;i++)o[i]=a*(o[i-1]+sig[i]-sig[i-1]);
+  return o;
+}
+function bpf(sig,sr,lo,hi){return hpf(lpf(sig,sr,hi),sr,lo);}
+function toAB(data,sr){const b=audioCtx.createBuffer(1,data.length,sr);b.getChannelData(0).set(data);return b;}
+function getMono(buf){
+  const o=new Float32Array(buf.length);
+  for(let c=0;c<buf.numberOfChannels;c++){const ch=buf.getChannelData(c);for(let i=0;i<buf.length;i++)o[i]+=ch[i]/buf.numberOfChannels;}
+  return o;
+}
+
+// ── YIN pitch detector
+function yin(buf,sr){
+  const N=buf.length,W=Math.floor(N/2);
+  const df=new Float32Array(W);
+  for(let tau=1;tau<W;tau++){for(let i=0;i<W;i++){const d=buf[i]-buf[i+tau];df[tau]+=d*d;}}
+  const cmnd=new Float32Array(W);cmnd[0]=1;let s=0;
+  for(let tau=1;tau<W;tau++){s+=df[tau];cmnd[tau]=df[tau]/((s/tau)||1);}
+  let tau=-1;
+  for(let t=2;t<W;t++){if(cmnd[t]<0.12){while(t+1<W&&cmnd[t+1]<cmnd[t])t++;tau=t;break;}}
+  if(tau<2){let mn=Infinity;for(let t=2;t<W;t++)if(cmnd[t]<mn){mn=cmnd[t];tau=t;}}
+  if(tau<2)return -1;
+  const a=cmnd[tau-1],b2=cmnd[tau],c2=(tau+1<W?cmnd[tau+1]:b2);
+  const den=(a+c2-2*b2);
+  const refined=den!==0?tau+(c2-a)/(2*den):tau;
+  return refined>1?sr/refined:-1;
+}
+
+// ── Track pitch in chunks (mobile-safe — yields to UI every N frames)
+async function trackBand(abuf,sr,hopSec,smoothN,midiLo,midiHi){
+  const mono=abuf.getChannelData(0);
+  const fSz=Math.round(sr*0.046),hop=Math.round(sr*hopSec);
+  const notes=[];let prev=-1,cnt=0;
+  const CHUNK=50; // yield every 50 frames to avoid locking UI
+  let frame=0;
+  for(let pos=0;pos+fSz<mono.length;pos+=hop,frame++){
+    if(frame%CHUNK===0)await sleep(0); // yield
+    const f=mono.slice(pos,pos+fSz);
+    const rms=Math.sqrt(f.reduce((s,v)=>s+v*v,0)/f.length);
+    if(rms<0.006){prev=-1;cnt=0;continue;}
+    const freq=yin(f,sr);
+    if(freq<=0){prev=-1;cnt=0;continue;}
+    let midi=Math.round(69+12*Math.log2(freq/440));
+    if(midi<midiLo||midi>midiHi)continue;
+    while(midi<NB_MIN)midi+=12;while(midi>NB_MAX)midi-=12;
+    midi=Math.max(NB_MIN,Math.min(NB_MAX,midi));
+    if(midi===prev)cnt++;else{prev=midi;cnt=1;}
+    if(cnt>=smoothN)notes.push({timeSec:pos/sr,midi,vel:Math.min(1,rms*6)});
+  }
+  return notes;
+}
+
+// ── Quantise with gap filling
+function quantiseAll(layers,bpm){
+  const tickSec=(60/bpm)/8; // 1/8th note ticks
+  const seen=new Set(),result=[];
+  for(const{notes,instr}of layers){
+    const ns=notes.map(n=>({...n,tick:Math.round(n.timeSec/tickSec),instr}));
+    for(const n of ns){
+      const k=`${n.tick}|${n.instr}|${n.midi}`;
+      if(!seen.has(k)){seen.add(k);result.push(n);}
+    }
+  }
+  result.sort((a,b)=>a.tick-b.tick);
+  // Gap fill: hold notes across small gaps (≤2 ticks) per voice
+  const byInstr={};
+  for(const n of result)(byInstr[n.instr]=byInstr[n.instr]||[]).push(n);
+  const filled=[];
+  for(const[instr,ns]of Object.entries(byInstr)){
+    for(let i=0;i<ns.length-1;i++){
+      filled.push(ns[i]);
+      const gap=ns[i+1].tick-ns[i].tick;
+      if(gap>1&&gap<=2){
+        const k=`${ns[i].tick+1}|${instr}|${ns[i].midi}`;
+        if(!seen.has(k)){seen.add(k);filled.push({...ns[i],tick:ns[i].tick+1,vel:ns[i].vel*.5});}
+      }
+    }
+    if(ns.length)filled.push(ns[ns.length-1]);
+  }
+  filled.sort((a,b)=>a.tick-b.tick);
+  return filled;
+}
+
+// ── Synthesise one note (with real MC sample if available, else synth)
+function makeNote(off,instr,midi,vel,t){
+  const freq=440*Math.pow(2,(midi-69)/12);
+  const env=off.createGain();
+  const r=SYNTH[instr]||SYNTH.harp;
+  const dur=r.atk+r.dec+r.rel+0.1;
+  env.gain.setValueAtTime(0,t);
+  env.gain.linearRampToValueAtTime(vel*.68,t+r.atk);
+  env.gain.linearRampToValueAtTime(vel*r.sus,t+r.atk+r.dec);
+  env.gain.setValueAtTime(vel*r.sus,t+r.atk+r.dec);
+  env.gain.exponentialRampToValueAtTime(0.0001,t+r.atk+r.dec+r.rel);
+  const flt=off.createBiquadFilter();
+  flt.type=r.ft;flt.frequency.value=r.ff;flt.Q.value=r.fq;
+  env.connect(flt);
+
+  const sb=sampleBufs[instr];
+  if(sb){
+    const src=off.createBufferSource();
+    src.buffer=sb;
+    src.detune.value=(midi-SAMPLE_MIDI)*100;
+    src.connect(env);src.start(t);src.stop(t+Math.min(dur,2));
+  } else {
+    for(const od of r.osc){
+      const osc=off.createOscillator();
+      osc.type=od.t;osc.frequency.value=freq*Math.pow(2,od.d/12);
+      const og=off.createGain();og.gain.value=od.g;
+      osc.connect(og);og.connect(env);
+      osc.start(t);osc.stop(t+dur);
+    }
+  }
+  return flt;
+}
+
+// ── Main render
+async function renderAudio(notes,dur,bpm){
+  const tickSec=(60/bpm)/8;
+  const maxTick=notes.length?Math.max(...notes.map(n=>n.tick)):0;
+  const totalDur=Math.max(dur,maxTick*tickSec+3);
+  const sr=44100;
+  const off=new OfflineAudioContext(2,Math.ceil(sr*totalDur),sr);
+  const master=off.createGain();master.gain.value=0.72;
+  const comp=off.createDynamicsCompressor();
+  comp.threshold.value=-8;comp.knee.value=4;comp.ratio.value=3.5;
+  comp.attack.value=0.002;comp.release.value=0.08;
+  master.connect(comp);comp.connect(off.destination);
+
+  const layerVol={harp:.85,guitar:.55,banjo:.55,bass:.65,bell:.7,xylophone:.75,
+    flute:.7,chime:.3,bit:.6,pling:.65,didgeridoo:.6};
+
+  for(const n of notes){
+    const t=n.tick*tickSec;
+    const lg=off.createGain();lg.gain.value=layerVol[n.instr]||.65;
+    const node=makeNote(off,n.instr,n.midi,n.vel,t);
+    node.connect(lg);lg.connect(master);
+  }
+  return off.startRendering();
+}
+
+// ── Main convert
+async function doConvert(){
+  if(!srcBuf)return showErr('No audio loaded.');
+  hideErr();
+  $('btnGo').disabled=true;
+  $('pg').classList.add('on');
+  $('res').classList.remove('on');
+  allNotes=[];
+
+  const bpm=useBpm;
+  const qp={fast:{hop:.045,sn:1},balanced:{hop:.025,sn:2},best:{hop:.016,sn:3}}[quality];
+
+  try{
+    await stg('s1',8,'Decoding audio');await sleep(80);
+    await stg('s2',16,'BPM: '+Math.round(bpm)+' (adjust above if wrong)');await sleep(60);
+
+    await stg('s3',26,'Separating frequency bands');
+    const mono=getMono(srcBuf),sr=srcBuf.sampleRate;
+    const hiB=toAB(hpf(mono,sr,650),sr);
+    const miB=toAB(bpf(mono,sr,160,650),sr);
+    const loB=toAB(lpf(mono,sr,200),sr);
+    await sleep(50);
+
+    await stg('s4',40,'Pitch tracking — melody');
+    const{melody,harmony,bass}=pickInstrs(srcBuf);
+    const hiN=await trackBand(hiB,sr,qp.hop,qp.sn,52,82);
+
+    await stg('s5',56,'Pitch tracking — harmony & bass');
+    const miN=quality==='fast'?[]:await trackBand(miB,sr,qp.hop*1.5,qp.sn,45,66);
+    const loN=quality==='fast'?[]:await trackBand(loB,sr,qp.hop*2.5,qp.sn,28,52);
+
+    await stg('s6',66,'Quantising to BPM grid');
+    hiN.forEach(n=>n.instr=melody);
+    miN.forEach(n=>n.instr=harmony);
+    loN.forEach(n=>n.instr=bass);
+    const shimmer=quality==='best'
+      ?hiN.filter((_,i)=>i%5===0).map(n=>({...n,instr:'chime',vel:n.vel*.2,midi:Math.min(NB_MAX,n.midi+12)}))
+      :[];
+    allNotes=quantiseAll([
+      {notes:hiN,instr:melody},
+      {notes:miN,instr:harmony},
+      {notes:loN,instr:bass},
+      ...(shimmer.length?[{notes:shimmer,instr:'chime'}]:[]),
+    ],bpm);
+    await sleep(40);
+
+    await stg('s7',74,'Loading Minecraft sounds');
+    await loadMCSamples([...new Set(allNotes.map(n=>n.instr))]);
+    await sleep(40);
+
+    await stg('s8',86,'Rendering & mixing');
+    rendBuf=await renderAudio(allNotes,srcBuf.duration,bpm);
+    wavBlob=toWav(rendBuf);
+    nbsBlob=buildNbs(allNotes,bpm);
+    await sleep(80);
+
+    $('pFill').style.width='100%';$('pLbl').textContent='Done!';$('pPct').textContent='100%';
+    document.querySelectorAll('.st').forEach(s=>{s.classList.remove('a');s.classList.add('d');});
+    await sleep(250);
+    showResult(bpm,melody,harmony,bass);
+  }catch(e){
+    showErr('Error: '+e.message+'\n\nTry "Fast" quality or a shorter song.');
+    console.error(e);
+  }finally{
+    $('btnGo').disabled=false;$('pg').classList.remove('on');
+  }
+}
+
+// ── WAV encoder
+function toWav(buf){
+  const nc=buf.numberOfChannels,sr=buf.sampleRate,len=buf.length;
+  const il=new Float32Array(len*nc);
+  for(let c=0;c<nc;c++){const ch=buf.getChannelData(c);for(let i=0;i<len;i++)il[i*nc+c]=ch[i];}
+  const pcm=new Int16Array(il.length);
+  for(let i=0;i<il.length;i++)pcm[i]=Math.max(-32768,Math.min(32767,Math.round(il[i]*32767)));
+  const ab=new ArrayBuffer(44+pcm.byteLength),dv=new DataView(ab);
+  const W=(o,v)=>dv.setUint32(o,v,true),S=(o,v)=>dv.setUint16(o,v,true);
+  [82,73,70,70].forEach((v,i)=>dv.setUint8(i,v));W(4,36+pcm.byteLength);
+  [87,65,86,69,102,109,116,32].forEach((v,i)=>dv.setUint8(8+i,v));
+  W(16,16);S(20,1);S(22,nc);W(24,sr);W(28,sr*nc*2);S(32,nc*2);S(34,16);
+  [100,97,116,97].forEach((v,i)=>dv.setUint8(36+i,v));W(40,pcm.byteLength);
+  new Int16Array(ab,44).set(pcm);
+  return new Blob([ab],{type:'audio/wav'});
+}
+
+// ── NBS builder
+function buildNbs(notes,bpm){
+  const imap={harp:0,bass:1,bell:3,flute:4,chime:5,guitar:6,xylophone:7,
+    iron_xylophone:8,cow_bell:9,didgeridoo:10,bit:11,banjo:12,pling:13};
+  const ticks={};
+  for(const n of notes)(ticks[n.tick]=ticks[n.tick]||[]).push(n);
+  const maxTick=notes.length?Math.max(...notes.map(n=>n.tick)):0;
+  const layers=Math.max(1,...Object.values(ticks).map(a=>a.length));
+  const enc=new TextEncoder(),parts=[];
+  const ws=s=>{const b=enc.encode(s),l=new Uint8Array(4);new DataView(l.buffer).setUint32(0,b.length,true);return[l,b];};
+  const wu=(v,n=2)=>{const a=new Uint8Array(n);new DataView(a.buffer)['setUint'+(n*8)](0,v,true);return[a];};
+  parts.push(...wu(0,2),...wu(5,1),...wu(16,1));
+  parts.push(...wu(maxTick,2),...wu(layers,2));
+  parts.push(...ws(srcName||'NoteForge'),...ws('NoteForge'),...ws(''));
+  const tickSec=(60/bpm)/8,tps=Math.round(100/tickSec);
+  parts.push(...wu(Math.max(1,Math.min(65535,tps)),2));
+  for(let i=0;i<9;i++)parts.push(...wu(0,1));
+  parts.push(...wu(0,4),...wu(0,4),...wu(0,4),...wu(0,2),...wu(0,4),...wu(0,4));
+  let pt=-1;
+  for(const ts of Object.keys(ticks).sort((a,b)=>+a-+b)){
+    const t=+ts;parts.push(...wu(t-pt,2));pt=t;
+    let pl=-1;
+    ticks[ts].forEach((n,li)=>{
+      parts.push(...wu(li-pl,2));pl=li;
+      parts.push(...wu(imap[n.instr]??0,1),...wu(n.midi-33,1),...wu(Math.round((n.vel||.8)*100),1),...wu(100,1),...wu(0,2));
+    });
+    parts.push(...wu(0,2));
+  }
+  parts.push(...wu(0,2));
+  for(let i=0;i<layers;i++){parts.push(...ws('Layer '+(i+1)),...wu(0,1),...wu(100,1),...wu(100,1));}
+  parts.push(...wu(0,1));
+  const total=parts.reduce((s,a)=>s+a.length,0);
+  const out=new Uint8Array(total);let off=0;
+  for(const p of parts){out.set(p,off);off+=p.length;}
+  return new Blob([out],{type:'application/octet-stream'});
+}
+
+// ── Playback
+function togglePlay(){if(!rendBuf)return;isPlaying?stopPlay():startPlay();}
+function startPlay(){
+  ensureCtx();
+  if(playSource)try{playSource.stop()}catch(e){}
+  playSource=audioCtx.createBufferSource();playSource.buffer=rendBuf;
+  gainNode=audioCtx.createGain();gainNode.gain.value=+$('vol').value/100;
+  playSource.connect(gainNode);gainNode.connect(audioCtx.destination);
+  playSource.start(0,playOffset);playStart=audioCtx.currentTime-playOffset;
+  isPlaying=true;$('bPlay').textContent='⏸';
+  playSource.onended=()=>{if(isPlaying){stopPlay();playOffset=0;$('tfi').style.width='0%';$('tCur').textContent='0:00';}};
+  rafId=requestAnimationFrame(tick);
+}
+function stopPlay(){
+  if(playSource)try{playSource.stop()}catch(e){}
+  isPlaying=false;playOffset=Math.min(audioCtx.currentTime-playStart,rendBuf.duration);
+  $('bPlay').textContent='▶';cancelAnimationFrame(rafId);
+}
+function tick(){
+  if(!isPlaying)return;
+  const el=audioCtx.currentTime-playStart;
+  $('tfi').style.width=(Math.min(el/rendBuf.duration,1)*100)+'%';
+  $('tCur').textContent=fmt(el);
+  rafId=requestAnimationFrame(tick);
+}
+function setVol(v){if(gainNode)gainNode.gain.value=v/100;}
+$('tbg').addEventListener('click',e=>{
+  if(!rendBuf)return;
+  const r=e.currentTarget.getBoundingClientRect();
+  playOffset=(e.clientX-r.left)/r.width*rendBuf.duration;
+  if(isPlaying){stopPlay();startPlay();}
+  else{$('tfi').style.width=((playOffset/rendBuf.duration)*100)+'%';$('tCur').textContent=fmt(playOffset);}
+});
+
+// ── Show result
+function showResult(bpm){
+  $('res').classList.add('on');
+  $('tTot').textContent=fmt(rendBuf.duration);
+  $('stN').textContent=allNotes.length;
+  $('stB').textContent=Math.round(bpm);
+  $('stD').textContent=fmt(rendBuf.duration);
+  const instrs=[...new Set(allNotes.map(n=>n.instr))];
+  $('stL').textContent=instrs.length;
+  $('rBadge').textContent=instrs.join(' + ');
+  playOffset=0;drawWave();drawRoll();
+}
+
+function drawWave(){
+  const cv=$('cvW'),cx=cv.getContext('2d'),W=cv.width,H=cv.height;
+  cx.clearRect(0,0,W,H);if(!rendBuf)return;
+  const d=rendBuf.getChannelData(0),step=Math.ceil(d.length/W);
+  cx.strokeStyle='#7cfc8a';cx.lineWidth=1;cx.beginPath();
+  for(let x=0;x<W;x++){let mn=0,mx=0;for(let i=0;i<step;i++){const v=d[x*step+i]||0;if(v<mn)mn=v;if(v>mx)mx=v;}cx.moveTo(x,H/2+mn*H*.44);cx.lineTo(x,H/2+mx*H*.44);}
+  cx.stroke();
+}
+function drawRoll(){
+  const cv=$('cvR'),cx=cv.getContext('2d'),W=cv.width,H=cv.height;
+  cx.clearRect(0,0,W,H);if(!allNotes.length)return;
+  const maxT=Math.max(...allNotes.map(n=>n.tick))||1,nr=NB_MAX-NB_MIN||1;
+  const cols={harp:'#7cfc8a',bass:'#00e5ff',bell:'#ffe066',guitar:'#ff9944',
+    banjo:'#dd88ff',xylophone:'#44ffcc',chime:'#88eeff',flute:'#aaddff',
+    bit:'#ff4499',pling:'#ffaa00',didgeridoo:'#66ffaa'};
+  for(const n of allNotes){
+    const x=(n.tick/maxT)*W,y=H-((n.midi-NB_MIN)/nr*(H-4))-4;
+    const al=Math.round((0.5+n.vel*.5)*255).toString(16).padStart(2,'0');
+    cx.fillStyle=(cols[n.instr]||'#7cfc8a')+al;
+    cx.fillRect(x,y,Math.max(2,(W/maxT)*.88),3);
+  }
+}
+
+function dlWav(){if(!wavBlob)return;const a=document.createElement('a');a.href=URL.createObjectURL(wavBlob);a.download=(srcName||'song')+'-noteblocks.wav';a.click();}
+function dlNbs(){if(!nbsBlob)return;const a=document.createElement('a');a.href=URL.createObjectURL(nbsBlob);a.download=(srcName||'song')+'.nbs';a.click();}
+</script>
+</body>
+</html>
