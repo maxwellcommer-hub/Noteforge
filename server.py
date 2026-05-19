@@ -71,23 +71,21 @@ def ytdl():
         except Exception:
             pass
 
-        # Try strategies in order — bestaudio without format restriction first
+        # Build strategy list — tries multiple approaches until one works
+        base = ['yt-dlp', '--no-playlist', '--no-warnings', '-o', out]
         strategies = []
+        # 1. Best audio only with cookies
         if ck:
-            strategies.append(['yt-dlp', '--no-playlist', '--no-warnings',
-                '-f', 'bestaudio', '-o', out] + ck + [url])
-        strategies += [
-            # No format filter — just grab whatever works
-            ['yt-dlp', '--no-playlist', '--no-warnings',
-             '-f', 'bestaudio', '-o', out] + ck + [url],
-            # iOS client
-            ['yt-dlp', '--no-playlist', '--no-warnings',
-             '--extractor-args', 'youtube:player_client=ios',
-             '-o', out] + ck + [url],
-            # Any format at all
-            ['yt-dlp', '--no-playlist', '--no-warnings',
-             '-o', out] + ck + [url],
-        ]
+            strategies.append(base + ['-f', 'bestaudio/best'] + ck + [url])
+        # 2. Best audio only, no cookies
+        strategies.append(base + ['-f', 'bestaudio/best'] + ck + [url])
+        # 3. iOS client (different bot detection path)
+        strategies.append(base + ['--extractor-args', 'youtube:player_client=ios',
+                                   '-f', 'bestaudio/best'] + ck + [url])
+        # 4. Best overall format (video+audio) — ffmpeg will extract audio
+        strategies.append(base + ['-f', 'best'] + ck + [url])
+        # 5. Absolute fallback — any format, no restrictions
+        strategies.append(base + ck + [url])
 
         last_err = ''
         ok = False
@@ -102,9 +100,9 @@ def ytdl():
             lines = [l for l in last_err.splitlines() if 'ERROR' in l]
             msg = lines[-1] if lines else last_err[-300:] if last_err else 'Download failed'
             if 'Sign in' in msg or 'bot' in msg.lower():
-                msg = 'YouTube bot check failed. Try re-exporting cookies from your browser and updating YOUTUBE_COOKIES in Railway.'
-            elif 'format' in msg.lower():
-                msg = 'No audio format available for this video. Try a different video.'
+                msg = 'YouTube bot check failed. Re-export your cookies and update YOUTUBE_COOKIES in Railway.'
+            elif 'format' in msg.lower() or 'available' in msg.lower():
+                msg = 'Could not get audio from this video. It may be age-restricted, private, or region-locked.'
             return jsonify({'error': msg}), 500
 
         # Find file
