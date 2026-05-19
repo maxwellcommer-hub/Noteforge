@@ -506,7 +506,7 @@ canvas{display:block;width:100%}
 
 <!-- 03 Density -->
 <div class="panel">
-  <div class="panel-title">03 NOTE DENSITY</div>
+  <div class="panel-title">02 INSTRUMENTS & DENSITY</div>
   <div class="qr" style="margin-bottom:12px">
     <div class="qb sel" id="dn1" onclick="setDensity('minimal')">🎵<br>MINIMAL<br><span style="color:#555577;font-size:6px">Clean</span></div>
     <div class="qb" id="dn2" onclick="setDensity('moderate')">🎶<br>MODERATE<br><span style="color:#555577;font-size:6px">+Bass</span></div>
@@ -822,101 +822,6 @@ async function afterLoad(){
 // - Auto-calibrate everything from the song's spectral & rhythmic content
 // ═══════════════════════════════════════════════════════════════════════
 
-// ── Polyphonic pitch detection using spectral peak picking
-// Finds multiple simultaneous pitches per frame (chords, melody+bass together)
-function detectPitches(frame, sr, maxNotes=3, minFreq=60, maxFreq=2000){
-  const N=frame.length;
-  // Compute magnitude spectrum
-  const mag=new Float32Array(N/2);
-  for(let k=1;k<N/2;k++){
-    let re=0,im=0;
-    for(let n=0;n<N;n++){
-      const a=2*Math.PI*k*n/N;
-      re+=frame[n]*Math.cos(a); im+=frame[n]*Math.sin(a);
-    }
-    mag[k]=Math.sqrt(re*re+im*im);
-  }
-  // Find spectral peaks (local maxima above threshold)
-  const peaks=[];
-  const threshold=Math.max(...mag)*0.08; // 8% of peak magnitude
-  for(let k=2;k<N/2-2;k++){
-    const freq=k*sr/N;
-    if(freq<minFreq||freq>maxFreq) continue;
-    if(mag[k]>threshold && mag[k]>mag[k-1] && mag[k]>mag[k+1] &&
-       mag[k]>mag[k-2] && mag[k]>mag[k+2]){
-      // Parabolic interpolation for sub-bin accuracy
-      const alpha=mag[k-1], beta=mag[k], gamma=mag[k+1];
-      const denom=alpha-2*beta+gamma;
-      const refinedK=denom!==0?k-0.5*(gamma-alpha)/denom:k;
-      const refinedFreq=refinedK*sr/N;
-      peaks.push({freq:refinedFreq, mag:mag[k]});
-    }
-  }
-  // Sort by magnitude, return top N as MIDI notes
-  peaks.sort((a,b)=>b.mag-a.mag);
-  const notes=[];
-  const seen=new Set();
-  for(const p of peaks.slice(0,maxNotes*3)){
-    const midi=Math.round(69+12*Math.log2(p.freq/440));
-    if(midi<21||midi>108) continue;
-    if(seen.has(midi)) continue;
-    // Check it's not a harmonic of an already-found note
-    let isHarmonic=false;
-    for(const existing of notes){
-      const ratio=p.freq/existing.freq;
-      if(Math.abs(ratio-Math.round(ratio))<0.05&&ratio>1.5){isHarmonic=true;break;}
-    }
-    if(!isHarmonic){seen.add(midi);notes.push({midi,freq:p.freq,mag:p.mag});}
-    if(notes.length>=maxNotes) break;
-  }
-  return notes;
-}
-
-// ── Auto-calibrate conversion parameters from the song
-function autoCalibrate(buf, bpm){
-  const{lo,mid,hi}=analyseSpec(buf);
-  const secPerBeat=60/bpm;
-
-  // Subdivision: faster songs need finer grid
-  // 150+ BPM → use 1/16th (4 per beat)
-  // 90-150 BPM → use 1/8th (2 per beat, then snap to 1/16th)
-  // <90 BPM → use 1/4 (1 per beat)
-  const subdiv = bpm>=140 ? 4 : bpm>=90 ? 4 : 3;
-
-  // Hop size: ~40ms for accurate pitch tracking
-  const hopSec=0.04;
-
-  // Smooth frames: how many consecutive same-pitch frames = note onset
-  // Faster songs → less smoothing needed
-  const smoothN = bpm>=130 ? 1 : 2;
-
-  // Velocity threshold: how quiet is too quiet
-  // Auto from RMS distribution
-  const mono=getMono(buf);
-  const rmsValues=[];
-  const hop=Math.round(buf.sampleRate*hopSec);
-  for(let i=0;i+hop<mono.length;i+=hop){
-    let e=0; for(let j=0;j<hop;j++) e+=mono[i+j]*mono[i+j];
-    rmsValues.push(Math.sqrt(e/hop));
-  }
-  rmsValues.sort((a,b)=>a-b);
-  // Use 20th percentile as silence threshold
-  const p20=rmsValues[Math.floor(rmsValues.length*0.20)]||0.005;
-  const velThresh=Math.max(0.005, p20*0.8);
-
-  // Instrument selection based on spectral content
-  let melody, harmony, bass;
-  if(hi>0.3){ melody='bell'; }
-  else if(hi>0.18){ melody='xylophone'; }
-  else if(mid>0.45){ melody='harp'; }
-  else { melody='flute'; }
-
-  harmony = mid>0.38 ? 'guitar' : 'banjo';
-  bass = lo>0.28 ? 'didgeridoo' : 'bass';
-
-  return{subdiv, hopSec, smoothN, velThresh, melody, harmony, bass};
-}
-
 // ── BPM Detection
 async function detectBpm(buf){
   const sr=buf.sampleRate, mono=getMono(buf);
@@ -1018,6 +923,7 @@ function yin(buf,sr){
 
 // ── Track a frequency band with onset/offset detection
 async function trackBand(abuf, sr, hopSec, smoothN, midiLo, midiHi, autoVelThresh){
+  autoVelThresh=autoVelThresh!==undefined?autoVelThresh:velThreshold;
   const mono=abuf.getChannelData(0);
   const fSz=Math.round(sr*0.046), hop=Math.round(sr*hopSec);
   const segments=[]; let prev=-1, cnt=0, segStart=0, segMaxRms=0, frame=0;
@@ -1128,13 +1034,17 @@ function makeNoteWithDuration(off,instr,midi,t,durSec){
   const totalDur=durSec+relDur+0.05;
 
   env.gain.setValueAtTime(0,t);
-  env.gain.linearRampToValueAtTime(0.8,t+atk);     // fast attack
-  env.gain.linearRampToValueAtTime(0.6,t+atk+Math.min(r.dec,durSec*0.3)); // initial decay
-  if(durSec>atk+0.05){
-    env.gain.setValueAtTime(0.5,noteEndT-0.01);     // hold through note duration
-    env.gain.exponentialRampToValueAtTime(0.001,noteEndT+relDur); // release at note end
+  env.gain.linearRampToValueAtTime(0.85,t+atk);
+  // Decay to sustain level
+  const sustainLevel=Math.max(0.3, 0.6-durSec*0.05); // longer notes decay more
+  env.gain.exponentialRampToValueAtTime(sustainLevel,t+atk+Math.min(r.dec,durSec*0.25));
+  if(durSec>atk+0.08){
+    // Hold sustain then release at note end
+    env.gain.setValueAtTime(sustainLevel,noteEndT-0.005);
+    env.gain.exponentialRampToValueAtTime(0.0001,noteEndT+relDur);
   } else {
-    env.gain.exponentialRampToValueAtTime(0.001,t+atk+relDur);
+    // Short note — just decay out
+    env.gain.exponentialRampToValueAtTime(0.0001,t+atk+Math.max(relDur,durSec));
   }
 
   const flt=off.createBiquadFilter();flt.type=r.ft;flt.frequency.value=r.ff;flt.Q.value=r.fq;
@@ -1169,12 +1079,27 @@ async function renderAudio(notes,dur,bpm,subdiv){  subdiv=subdiv||4;
   const sr=44100;
   const off=new OfflineAudioContext(2,Math.ceil(sr*totalDur),sr);
 
-  // Master chain with gentle compression to glue layers
-  const master=off.createGain(); master.gain.value=0.68;
+  // Master chain: gain → compressor → reverb send → destination
+  const master=off.createGain(); master.gain.value=0.72;
   const comp=off.createDynamicsCompressor();
-  comp.threshold.value=-12; comp.knee.value=6;
-  comp.ratio.value=3;  comp.attack.value=0.003; comp.release.value=0.15;
-  master.connect(comp); comp.connect(off.destination);
+  comp.threshold.value=-10; comp.knee.value=5;
+  comp.ratio.value=2.5; comp.attack.value=0.004; comp.release.value=0.18;
+  master.connect(comp);
+
+  // Small room reverb for natural note blending (like a Minecraft cave)
+  const convolver=off.createConvolver();
+  const irLen=Math.floor(sr*0.8); // 0.8s impulse
+  const ir=off.createBuffer(2,irLen,sr);
+  for(let c=0;c<2;c++){
+    const d=ir.getChannelData(c);
+    for(let i=0;i<irLen;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/irLen,3);
+  }
+  convolver.buffer=ir;
+
+  const dryGain=off.createGain(); dryGain.gain.value=0.82;
+  const wetGain=off.createGain(); wetGain.gain.value=0.18;
+  comp.connect(dryGain); dryGain.connect(off.destination);
+  comp.connect(convolver); convolver.connect(wetGain); wetGain.connect(off.destination);
 
   // Per-instrument volume balancing
   const lv={
@@ -1243,35 +1168,32 @@ async function doConvert(){
   try{
     await stg('s1',8,'Decoding audio');await sleep(80);
 
-    // Auto-calibrate to this specific song
-    await stg('s2',16,'Auto-calibrating (BPM: '+Math.round(bpm)+')');
-    cal=autoCalibrate(srcBuf,bpm);
-    const sr=srcBuf.sampleRate;
-    // Push auto-picked instruments to dropdowns
-    const selM=document.getElementById('instrMelody');
-    const selH=document.getElementById('instrHarmony');
-    const selB=document.getElementById('instrBass');
-    if(selM)setSelectVal(selM,cal.melody);
-    if(selH)setSelectVal(selH,cal.harmony);
-    if(selB)setSelectVal(selB,cal.bass);
-    await sleep(60);
+    await stg('s2',16,'BPM: '+Math.round(bpm));await sleep(60);
 
-    await stg('s3',28,'Separating frequency bands');
+    // Auto-pick instruments from spectrum + set cal for this song
+    const sr=srcBuf.sampleRate;
+    const{melody,harmony,bass}=getInstrs(); // uses dropdown values (auto-set by previewInstrs)
+    cal={subdiv:4}; // 1/16th note grid
+
+    await stg('s3',26,'Separating frequency bands');
     const mono=getMono(srcBuf);
-    const hiB=toAB(hpf(mono,sr,600),sr);
-    const miB=toAB(bpf(mono,sr,150,600),sr);
+    const hiB=toAB(hpf(mono,sr,650),sr);
+    const miB=toAB(bpf(mono,sr,160,650),sr);
     const loB=toAB(lpf(mono,sr,200),sr);
     await sleep(40);
 
-    await stg('s4',40,'Detecting melody & chords');
-    const{melody,harmony,bass}=getInstrs();
-    const hiN=await trackBand(hiB,sr,cal.hopSec,cal.smoothN,52,82,cal.velThresh);
+    // Hop and smoothing based on BPM — faster songs need finer tracking
+    const hopSec = bpm>130 ? 0.02 : bpm>90 ? 0.025 : 0.03;
+    const smoothN = bpm>130 ? 1 : 2;
 
-    await stg('s5',56,'Tracking harmony & bass layers');
-    const miN=await trackBand(miB,sr,cal.hopSec*1.5,cal.smoothN,45,66,cal.velThresh);
-    const loN=await trackBand(loB,sr,cal.hopSec*2.5,cal.smoothN+1,28,52,cal.velThresh*0.7);
+    await stg('s4',38,'Pitch tracking melody...');
+    const hiN=await trackBand(hiB,sr,hopSec,smoothN,52,82,velThreshold);
 
-    await stg('s6',66,'Quantising to '+cal.subdiv+' subdivisions per beat');
+    await stg('s5',54,'Pitch tracking harmony & bass...');
+    const miN=noteDensity==='minimal'?[]:await trackBand(miB,sr,hopSec*1.5,smoothN,45,66,velThreshold);
+    const loN=noteDensity==='minimal'?[]:await trackBand(loB,sr,hopSec*2.5,smoothN+1,28,52,velThreshold*0.7);
+
+    await stg('s6',64,'Quantising to BPM grid');
     hiN.forEach(n=>n.instr=melody);
     miN.forEach(n=>n.instr=harmony);
     loN.forEach(n=>n.instr=bass);
