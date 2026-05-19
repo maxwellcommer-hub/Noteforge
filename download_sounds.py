@@ -29,9 +29,10 @@ def try_download(name, objects):
     ]
     # Special case mappings
     alt_names = {
-        "xylophone": ["xylobone"],
-        "iron_xylophone": ["iron_xylophone", "xylobone"],
-        "basedrum": ["basedrum", "bd"],
+        "xylophone":       ["xylobone"],
+        "iron_xylophone":  ["iron_xylophone", "xylobone"],
+        "basedrum":        ["bd", "basedrum"],
+        "chime":           ["icechime", "chime"],  # stored as icechime in older versions
     }
     if name in alt_names:
         for alt in alt_names[name]:
