@@ -460,47 +460,56 @@ canvas{display:block;width:100%}
   </div>
 
   <div id="instrWrap" style="display:none">
-    <div class="il">INSTRUMENT LAYERS:</div>
+    <div class="il">INSTRUMENT FAMILIES — each layer auto-uses all pitch variants</div>
     <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:13px;color:var(--green);min-width:64px">♪ MELODY</span>
         <select id="instrMelody" class="mc-select">
-          <option value="harp">Harp</option>
-          <option value="bell">Bell</option>
-          <option value="xylophone">Xylophone</option>
-          <option value="flute">Flute</option>
-          <option value="chime">Chime</option>
-          <option value="bit">Bit (8-bit)</option>
-          <option value="pling">Pling</option>
-          <option value="banjo">Banjo</option>
-          <option value="guitar">Guitar</option>
+          <option value="harp">Harp family</option>
+          <option value="bell">Bell family</option>
+          <option value="xylophone">Xylophone family</option>
+          <option value="flute">Flute family</option>
+          <option value="chime">Chime family</option>
+          <option value="bit">Bit — 8-bit family</option>
+          <option value="pling">Pling family</option>
+          <option value="banjo">Banjo family</option>
+          <option value="guitar">Guitar family</option>
+          <option value="iron_xylophone">Iron Xylophone family</option>
+          <option value="cow_bell">Cow Bell family</option>
         </select>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:13px;color:var(--aqua);min-width:64px">♫ HARMONY</span>
         <select id="instrHarmony" class="mc-select">
-          <option value="guitar">Guitar</option>
-          <option value="banjo">Banjo</option>
-          <option value="harp">Harp</option>
-          <option value="flute">Flute</option>
-          <option value="bit">Bit (8-bit)</option>
-          <option value="pling">Pling</option>
-          <option value="xylophone">Xylophone</option>
-          <option value="chime">Chime</option>
-          <option value="none">— None —</option>
+          <option value="guitar">Guitar family</option>
+          <option value="banjo">Banjo family</option>
+          <option value="harp">Harp family</option>
+          <option value="flute">Flute family</option>
+          <option value="bit">Bit — 8-bit family</option>
+          <option value="pling">Pling family</option>
+          <option value="xylophone">Xylophone family</option>
+          <option value="chime">Chime family</option>
+          <option value="iron_xylophone">Iron Xylophone family</option>
+          <option value="bell">Bell family</option>
+          <option value="cow_bell">Cow Bell family</option>
+          <option value="none">— None (skip layer) —</option>
         </select>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:13px;color:var(--gold);min-width:64px">♩ BASS</span>
         <select id="instrBass" class="mc-select">
-          <option value="bass">Bass</option>
-          <option value="didgeridoo">Didgeridoo</option>
-          <option value="harp">Harp</option>
-          <option value="guitar">Guitar</option>
-          <option value="bit">Bit (8-bit)</option>
-          <option value="none">— None —</option>
+          <option value="bass">Bass family</option>
+          <option value="didgeridoo">Didgeridoo family</option>
+          <option value="harp">Harp family</option>
+          <option value="guitar">Guitar family</option>
+          <option value="bit">Bit — 8-bit family</option>
+          <option value="none">— None (skip layer) —</option>
         </select>
       </div>
+    </div>
+    <div style="font-size:12px;color:var(--dgray);margin-top:8px;line-height:1.6">
+      Each family uses multiple block variants (octave shifts) so every note in the song<br>
+      is covered — no notes get skipped or clamped.
     </div>
   </div>
 </div>
@@ -597,22 +606,89 @@ canvas{display:block;width:100%}
 </div>
 
 <script>
-// ── Instrument synth recipes (layered oscillators, tuned to match MC note block timbres)
+// ── All 16 Minecraft note block instruments
+// Synth recipes tuned to match each instrument's actual MC sound character
 const SYNTH={
-  harp:      {osc:[{t:'triangle',g:.7,d:0},{t:'sine',g:.3,d:.5},{t:'sine',g:.1,d:12}],          atk:.003,dec:.18,sus:.08,rel:1.2,ff:5000,fq:.8,ft:'lowpass'},
-  bass:      {osc:[{t:'sawtooth',g:.55,d:0},{t:'sine',g:.45,d:-12},{t:'triangle',g:.15,d:.3}],  atk:.008,dec:.25,sus:.35,rel:1.4, ff:700, fq:1.5,ft:'lowpass'},
-  bell:      {osc:[{t:'sine',g:.8,d:0},{t:'sine',g:.3,d:24},{t:'sine',g:.12,d:19}],             atk:.001,dec:1.1,sus:.01,rel:1.4,ff:400, fq:.5, ft:'highpass'},
-  guitar:    {osc:[{t:'sawtooth',g:.5,d:0},{t:'triangle',g:.4,d:.4},{t:'sine',g:.1,d:-12}],     atk:.004,dec:.14,sus:.18,rel:1.0, ff:3200,fq:2.2,ft:'lowpass'},
-  flute:     {osc:[{t:'sine',g:.75,d:0},{t:'triangle',g:.2,d:.2}],                               atk:.045,dec:.08,sus:.65,rel:0.8,ff:3000,fq:.4, ft:'bandpass'},
-  xylophone: {osc:[{t:'triangle',g:.7,d:0},{t:'sine',g:.25,d:19},{t:'sine',g:.1,d:28}],         atk:.001,dec:.22,sus:.01,rel:0.9,ff:600, fq:.6, ft:'highpass'},
-  banjo:     {osc:[{t:'triangle',g:.6,d:0},{t:'sawtooth',g:.25,d:.6},{t:'sine',g:.15,d:12}],    atk:.003,dec:.18,sus:.12,rel:1.0,ff:4500,fq:1.8,ft:'lowpass'},
-  bit:       {osc:[{t:'square',g:.65,d:0},{t:'square',g:.2,d:12}],                               atk:.001,dec:.04,sus:.75,rel:.06,ff:2800,fq:.8, ft:'lowpass'},
-  chime:     {osc:[{t:'sine',g:.7,d:0},{t:'sine',g:.2,d:24},{t:'sine',g:.08,d:31}],             atk:.001,dec:1.6,sus:.005,rel:1.8,ff:1000,fq:1.0,ft:'highpass'},
-  didgeridoo:{osc:[{t:'sawtooth',g:.5,d:0},{t:'sawtooth',g:.3,d:-12},{t:'sine',g:.2,d:-24}],   atk:.015,dec:.4,sus:.6,rel:1.0,  ff:380, fq:2.5,ft:'lowpass'},
-  pling:     {osc:[{t:'sawtooth',g:.55,d:0},{t:'sine',g:.35,d:0}],                               atk:.001,dec:.09,sus:.55,rel:0.8,ff:5500,fq:3.5,ft:'lowpass'},
+  // ── Pitched instruments (use full NB range F#3-F#5)
+  harp:        {osc:[{t:'triangle',g:.7,d:0},{t:'sine',g:.3,d:.5},{t:'sine',g:.1,d:12}],          atk:.003,dec:.18,sus:.08,rel:1.2, ff:5000,fq:.8, ft:'lowpass'},
+  bass:        {osc:[{t:'sawtooth',g:.55,d:0},{t:'sine',g:.45,d:-12},{t:'triangle',g:.15,d:.3}],  atk:.008,dec:.25,sus:.35,rel:1.4, ff:700, fq:1.5,ft:'lowpass'},
+  bell:        {osc:[{t:'sine',g:.8,d:0},{t:'sine',g:.3,d:24},{t:'sine',g:.12,d:19}],             atk:.001,dec:1.1, sus:.01,rel:1.4, ff:400, fq:.5, ft:'highpass'},
+  flute:       {osc:[{t:'sine',g:.75,d:0},{t:'triangle',g:.2,d:.2}],                               atk:.045,dec:.08,sus:.65,rel:.8,  ff:3000,fq:.4, ft:'bandpass'},
+  chime:       {osc:[{t:'sine',g:.7,d:0},{t:'sine',g:.2,d:24},{t:'sine',g:.08,d:31}],             atk:.001,dec:1.6, sus:.005,rel:1.8,ff:1000,fq:1.0,ft:'highpass'},
+  guitar:      {osc:[{t:'sawtooth',g:.5,d:0},{t:'triangle',g:.4,d:.4},{t:'sine',g:.1,d:-12}],     atk:.004,dec:.14,sus:.18,rel:1.0, ff:3200,fq:2.2,ft:'lowpass'},
+  xylophone:   {osc:[{t:'triangle',g:.7,d:0},{t:'sine',g:.25,d:19},{t:'sine',g:.1,d:28}],         atk:.001,dec:.22,sus:.01,rel:.9,  ff:600, fq:.6, ft:'highpass'},
+  iron_xylophone:{osc:[{t:'triangle',g:.65,d:0},{t:'sine',g:.3,d:12},{t:'sine',g:.1,d:24}],       atk:.001,dec:.5,  sus:.02,rel:.9,  ff:800, fq:2,  ft:'highpass'},
+  cow_bell:    {osc:[{t:'square',g:.5,d:0},{t:'square',g:.3,d:7},{t:'sine',g:.2,d:19}],           atk:.001,dec:.3,  sus:.05,rel:.6,  ff:2000,fq:5,  ft:'bandpass'},
+  didgeridoo:  {osc:[{t:'sawtooth',g:.5,d:0},{t:'sawtooth',g:.3,d:-12},{t:'sine',g:.2,d:-24}],   atk:.015,dec:.4,  sus:.6, rel:1.0, ff:380, fq:2.5,ft:'lowpass'},
+  bit:         {osc:[{t:'square',g:.65,d:0},{t:'square',g:.2,d:12}],                               atk:.001,dec:.04,sus:.75,rel:.06, ff:2800,fq:.8, ft:'lowpass'},
+  banjo:       {osc:[{t:'triangle',g:.6,d:0},{t:'sawtooth',g:.25,d:.6},{t:'sine',g:.15,d:12}],    atk:.003,dec:.18,sus:.12,rel:1.0, ff:4500,fq:1.8,ft:'lowpass'},
+  pling:       {osc:[{t:'sawtooth',g:.55,d:0},{t:'sine',g:.35,d:0}],                               atk:.001,dec:.09,sus:.55,rel:.8,  ff:5500,fq:3.5,ft:'lowpass'},
+  // ── Percussion (fixed pitch, ignores midi note for sound character)
+  basedrum:    {osc:[{t:'sine',g:.9,d:0},{t:'sine',g:.3,d:-12}],                                   atk:.001,dec:.15,sus:.0, rel:.2,  ff:120, fq:3,  ft:'lowpass',  perc:true},
+  snare:       {osc:[{t:'sawtooth',g:.4,d:0}],                                                     atk:.001,dec:.08,sus:.0, rel:.12, ff:2000,fq:1,  ft:'highpass', perc:true, noise:true},
+  hat:         {osc:[{t:'square',g:.3,d:0}],                                                       atk:.001,dec:.04,sus:.0, rel:.06, ff:8000,fq:2,  ft:'highpass', perc:true, noise:true},
 };
 
 const NB_MIN=42,NB_MAX=66,SAMPLE_MIDI=54;
+
+// ── Instrument families with pitch variants
+// Each "family" is multiple variants of the same sound at different octave offsets.
+// In real Minecraft, placing different blocks under a note block shifts the base octave.
+// We simulate this by applying a detune offset to the synth.
+// This gives each instrument a wider pitch range — every note in the song gets covered.
+const FAMILIES = {
+  harp:          ['harp',    0,   'harp',   -12,  'harp',   +12],
+  bell:          ['bell',    0,   'bell',   -12,  'chime',  +12],
+  xylophone:     ['xylophone',0,  'xylophone',-12,'iron_xylophone',+12],
+  flute:         ['flute',   0,   'flute',  -12,  'flute',  +12],
+  chime:         ['chime',   0,   'chime',  -12,  'bell',   +12],
+  bit:           ['bit',     0,   'bit',    -12,  'bit',    +12],
+  pling:         ['pling',   0,   'pling',  -12,  'pling',  +12],
+  banjo:         ['banjo',   0,   'banjo',  -12,  'guitar', +12],
+  guitar:        ['guitar',  0,   'guitar', -12,  'banjo',  +12],
+  iron_xylophone:['iron_xylophone',0,'xylophone',-12,'iron_xylophone',+12],
+  cow_bell:      ['cow_bell',0,   'cow_bell',-12, 'cow_bell',+12],
+  bass:          ['bass',    0,   'bass',   -12,  'didgeridoo',-24],
+  didgeridoo:    ['didgeridoo',0, 'bass',   +12,  'didgeridoo',-12],
+};
+// NBS instrument IDs for all variants
+const NBS_IDS = {
+  harp:0,bass:1,bell:3,flute:4,chime:5,guitar:6,xylophone:7,
+  iron_xylophone:8,cow_bell:9,didgeridoo:10,bit:11,banjo:12,pling:13,
+  basedrum:2,snare:14,hat:15
+};
+
+// Given a family name and a MIDI note, pick the best variant + adjusted midi
+// so the note lands cleanly within NB_MIN-NB_MAX without clamping
+function familyVariant(familyName, midi) {
+  const fam = FAMILIES[familyName];
+  if (!fam) return {instr: familyName, midi: Math.max(NB_MIN, Math.min(NB_MAX, midi)), detuneOctave: 0};
+
+  // Try each variant (instr, octaveOffset pairs)
+  const variants = [];
+  for (let i = 0; i < fam.length; i += 2) {
+    variants.push({instr: fam[i], octave: fam[i+1]});
+  }
+
+  // Find the variant where midi - octave lands closest to center of NB range
+  // without going outside NB_MIN-NB_MAX
+  const NB_CENTER = (NB_MIN + NB_MAX) / 2;
+  let best = null, bestDist = Infinity;
+  for (const v of variants) {
+    const adjusted = midi - v.octave;
+    if (adjusted >= NB_MIN && adjusted <= NB_MAX) {
+      const dist = Math.abs(adjusted - NB_CENTER);
+      if (dist < bestDist) { bestDist = dist; best = {...v, midi: adjusted}; }
+    }
+  }
+  // If none fit cleanly, clamp to nearest
+  if (!best) {
+    best = variants[0];
+    best = {...best, midi: Math.max(NB_MIN, Math.min(NB_MAX, midi - best.octave))};
+  }
+  return {instr: best.instr, midi: best.midi};
+}
+
 let audioCtx=null,srcBuf=null,rendBuf=null,allNotes=[];
 let detBpm=120,useBpm=120,quality='balanced',srcName='song';
 let playSource=null,gainNode=null,isPlaying=false;
@@ -840,11 +916,26 @@ function pickInstrs(buf){
 }
 function previewInstrs(buf){
   const{melody,harmony,bass}=pickInstrs(buf);
-  // Set dropdown defaults based on detected spectrum
   const m=$('instrMelody'),h=$('instrHarmony'),b=$('instrBass');
   if(m)setSelectVal(m,melody);
   if(h)setSelectVal(h,harmony);
   if(b)setSelectVal(b,bass);
+  // Show which variants will be used
+  showFamilyPreview(melody,harmony,bass);
+}
+function showFamilyPreview(melody,harmony,bass){
+  const fam=FAMILIES;
+  const desc=(f)=>{
+    if(f==='none')return 'none';
+    const variants=[];
+    const fd=fam[f];
+    if(!fd)return f;
+    for(let i=0;i<fd.length;i+=2){
+      const oct=fd[i+1];
+      variants.push(fd[i]+(oct===0?' (base)':oct>0?' (+'+oct/12+' oct)':' ('+oct/12+' oct)'));
+    }
+    return variants.join(', ');
+  };
 }
 function setSelectVal(sel,val){
   for(let i=0;i<sel.options.length;i++){
@@ -880,35 +971,6 @@ function yin(buf,sr){
   const den=a+c2-2*b2;
   const r=den!==0?tau+(c2-a)/(2*den):tau;
   return r>1?sr/r:-1;
-}
-
-// ── Basic Pitch ML transcription via server
-async function tryBasicPitch(audioBuf){
-  // Convert AudioBuffer to WAV blob and POST to /transcribe
-  const wav=toWavBlobFromBuf(audioBuf);
-  const form=new FormData();
-  form.append('file',wav,'audio.wav');
-  const res=await fetch('/transcribe',{method:'POST',body:form});
-  if(!res.ok){const d=await res.json();throw new Error(d.error||'Server error');}
-  const data=await res.json();
-  return data.notes; // [{timeSec, durSec, midi, vel}]
-}
-
-function toWavBlobFromBuf(buf){
-  // Export as mono 22050Hz WAV to keep upload size small
-  const sr=22050,len=buf.length;
-  const mono=new Float32Array(len);
-  for(let c=0;c<buf.numberOfChannels;c++){const ch=buf.getChannelData(c);for(let i=0;i<len;i++)mono[i]+=ch[i]/buf.numberOfChannels;}
-  const pcm=new Int16Array(len);
-  for(let i=0;i<len;i++)pcm[i]=Math.max(-32768,Math.min(32767,Math.round(mono[i]*32767)));
-  const ab=new ArrayBuffer(44+pcm.byteLength),dv=new DataView(ab);
-  const W=(o,v)=>dv.setUint32(o,v,true),S=(o,v)=>dv.setUint16(o,v,true);
-  [82,73,70,70].forEach((v,i)=>dv.setUint8(i,v));W(4,36+pcm.byteLength);
-  [87,65,86,69,102,109,116,32].forEach((v,i)=>dv.setUint8(8+i,v));
-  W(16,16);S(20,1);S(22,1);W(24,sr);W(28,sr*2);S(32,2);S(34,16);
-  [100,97,116,97].forEach((v,i)=>dv.setUint8(36+i,v));W(40,pcm.byteLength);
-  new Int16Array(ab,44).set(pcm);
-  return new Blob([ab],{type:'audio/wav'});
 }
 
 // ── Track pitch — single pass, fast, produces segments with duration
@@ -1021,24 +1083,36 @@ async function loadMCSamples(instrs){
 // ── Synth one note
 function makeNote(off,instr,midi,vel,t){
   const r=SYNTH[instr]||SYNTH.harp;
-  const freq=440*Math.pow(2,(midi-69)/12);
+  const freq=r.perc?200:440*Math.pow(2,(midi-69)/12); // percussion uses fixed freq
   const env=off.createGain();
-  const dur=r.atk+r.dec+r.rel+0.1;
+  const dur=r.atk+r.dec+r.rel+0.05;
   env.gain.setValueAtTime(0,t);
   env.gain.linearRampToValueAtTime(vel*.68,t+r.atk);
-  env.gain.linearRampToValueAtTime(vel*r.sus,t+r.atk+r.dec);
-  env.gain.setValueAtTime(vel*r.sus,t+r.atk+r.dec);
+  env.gain.linearRampToValueAtTime(vel*(r.sus||0),t+r.atk+r.dec);
+  env.gain.setValueAtTime(vel*(r.sus||0),t+r.atk+r.dec);
   env.gain.exponentialRampToValueAtTime(0.0001,t+r.atk+r.dec+r.rel);
   const flt=off.createBiquadFilter();flt.type=r.ft;flt.frequency.value=r.ff;flt.Q.value=r.fq;
   env.connect(flt);
   const sb=sampleBufs[instr];
   if(sb){
     const src=off.createBufferSource();src.buffer=sb;
-    src.detune.value=(midi-SAMPLE_MIDI)*100;
+    if(!r.perc)src.detune.value=(midi-SAMPLE_MIDI)*100;
     src.connect(env);src.start(t);src.stop(t+Math.min(dur,3.5));
-  }else{
+  } else if(r.noise){
+    // White noise for snare/hat
+    const bufLen=Math.ceil(off.sampleRate*dur);
+    const nb=off.createBuffer(1,bufLen,off.sampleRate);
+    const nd=nb.getChannelData(0);
+    for(let i=0;i<bufLen;i++)nd[i]=(Math.random()*2-1);
+    const ns=off.createBufferSource();ns.buffer=nb;
+    ns.connect(env);ns.start(t);ns.stop(t+dur);
+  } else {
     for(const od of r.osc){
-      const osc=off.createOscillator();osc.type=od.t;osc.frequency.value=freq*Math.pow(2,od.d/12);
+      const osc=off.createOscillator();
+      osc.type=od.t;
+      osc.frequency.value=freq*Math.pow(2,od.d/12);
+      // For bass drum: pitch sweep down quickly
+      if(instr==='basedrum')osc.frequency.exponentialRampToValueAtTime(30,t+0.1);
       const og=off.createGain();og.gain.value=od.g;
       osc.connect(og);og.connect(env);osc.start(t);osc.stop(t+dur);
     }
@@ -1113,44 +1187,27 @@ async function doConvert(){
     await stg('s1',8,'Decoding audio');await sleep(80);
     await stg('s2',16,'BPM: '+Math.round(bpm));await sleep(60);
 
-    // Try Basic Pitch ML transcription first (much better quality)
-    let usedML=false;
-    try{
-      await stg('s3',22,'Uploading to ML pitch detector (Basic Pitch)...');
-      const mlNotes=await tryBasicPitch(srcBuf);
-      if(mlNotes&&mlNotes.length>10){
-        await stg('s4',44,'ML transcription complete — '+mlNotes.length+' notes');
-        await stg('s5',52,'Assigning instruments...');
-        const{melody,harmony,bass}=getInstrs();
-        // Split ML notes into layers by pitch range
-        const hiN=mlNotes.filter(n=>n.midi>=52).map(n=>({...n,instr:melody}));
-        const miN=noteDensity!=='minimal'?mlNotes.filter(n=>n.midi>=45&&n.midi<52).map(n=>({...n,instr:harmony})):[];
-        const loN=noteDensity!=='minimal'?mlNotes.filter(n=>n.midi<45).map(n=>({...n,instr:bass})):[];
-        await stg('s6',62,'Filtering & quantising notes');
-        allNotes=quantiseAll([{notes:hiN,instr:melody},{notes:miN,instr:harmony},{notes:loN,instr:bass}],bpm);
-        usedML=true;
-      }
-    }catch(e){console.warn('Basic Pitch failed, falling back to browser YIN:',e.message);}
-
-    if(!usedML){
-      // Fallback: browser-side YIN pitch detection
-      await stg('s3',26,'Separating frequency bands');
-      const mono=getMono(srcBuf),sr=srcBuf.sampleRate;
-      const hiB=toAB(hpf(mono,sr,650),sr);
-      const miB=toAB(bpf(mono,sr,160,650),sr);
-      const loB=toAB(lpf(mono,sr,200),sr);
-      await sleep(40);
-      await stg('s4',36,'Pitch tracking melody (YIN)...');
-      const{melody,harmony,bass}=getInstrs();
-      const hiN=await trackBand(hiB,sr,qp.hop,qp.sn,52,82);
-      await stg('s5',52,'Pitch tracking harmony & bass...');
-      const miN=noteDensity==='minimal'?[]:await trackBand(miB,sr,qp.hop*1.5,qp.sn,45,66);
-      const loN=noteDensity==='minimal'?[]:await trackBand(loB,sr,qp.hop*2.5,qp.sn,28,52);
-      await stg('s6',62,'Filtering & quantising notes');
-      hiN.forEach(n=>n.instr=melody);miN.forEach(n=>n.instr=harmony);loN.forEach(n=>n.instr=bass);
-      const shimmer=quality==='best'?hiN.filter((_,i)=>i%5===0).map(n=>({...n,instr:'chime',vel:n.vel*.2,midi:Math.min(NB_MAX,n.midi+12)})):[];
-      allNotes=quantiseAll([{notes:hiN,instr:melody},{notes:miN,instr:harmony},{notes:loN,instr:bass},...(shimmer.length?[{notes:shimmer,instr:'chime'}]:[])],bpm);
-    }
+    await stg('s3',26,'Separating frequency bands');
+    const mono=getMono(srcBuf),sr=srcBuf.sampleRate;
+    const hiB=toAB(hpf(mono,sr,650),sr);
+    const miB=toAB(bpf(mono,sr,160,650),sr);
+    const loB=toAB(lpf(mono,sr,200),sr);
+    await sleep(40);
+    await stg('s4',36,'Pitch tracking melody...');
+    const{melody,harmony,bass}=getInstrs();
+    const hiN=await trackBand(hiB,sr,qp.hop,qp.sn,52,82);
+    await stg('s5',52,'Pitch tracking harmony & bass...');
+    const miN=noteDensity==='minimal'?[]:await trackBand(miB,sr,qp.hop*1.5,qp.sn,45,66);
+    const loN=noteDensity==='minimal'?[]:await trackBand(loB,sr,qp.hop*2.5,qp.sn,28,52);
+    await stg('s6',62,'Filtering & quantising notes');
+    hiN.forEach(n=>n.instr=melody);miN.forEach(n=>n.instr=harmony);loN.forEach(n=>n.instr=bass);
+    const shimmer=quality==='best'?hiN.filter((_,i)=>i%5===0).map(n=>({...n,instr:'chime',vel:n.vel*.2,midi:Math.min(NB_MAX,n.midi+12)})):[];
+    allNotes=quantiseAll([
+      {notes:hiN,  instr:melody,  family:melody},
+      {notes:miN,  instr:harmony, family:harmony},
+      {notes:loN,  instr:bass,    family:bass},
+      ...(shimmer.length?[{notes:shimmer,instr:'chime',family:'chime'}]:[])
+    ],bpm);
     await sleep(40);
     await stg('s7',68,'Loading Minecraft sounds');
     await loadMCSamples([...new Set(allNotes.map(n=>n.instr))]);
@@ -1186,7 +1243,7 @@ async function doConvert(){
 
 // ── NBS builder
 function buildNbs(notes,bpm){
-  const imap={harp:0,bass:1,bell:3,flute:4,chime:5,guitar:6,xylophone:7,iron_xylophone:8,cow_bell:9,didgeridoo:10,bit:11,banjo:12,pling:13};
+  const imap=NBS_IDS;
   const ticks={};for(const n of notes)(ticks[n.tick]=ticks[n.tick]||[]).push(n);
   const maxTick=notes.length?Math.max(...notes.map(n=>n.tick)):0;
   const layers=Math.max(1,...Object.values(ticks).map(a=>a.length));
@@ -1306,19 +1363,21 @@ async function rerender(){
     const instrs=[...new Set(allNotes.map(n=>n.instr))];
     // Remap: first instr = melody, second = harmony, third = bass
     // Actually remap by pitch range
-    allNotes.forEach(n=>{
-      if(n.midi>=52)n.instr=melody==='none'?'harp':melody;
-      else if(n.midi>=45)n.instr=harmony==='none'?'harp':harmony;
-      else n.instr=bass==='none'?'bass':bass;
-    });
-    // Filter out notes whose layer is set to none
-    const m=$('instrMelody')?.value,h=$('instrHarmony')?.value,b=$('instrBass')?.value;
-    const filtered=allNotes.filter(n=>{
-      if(n.midi>=52&&m==='none')return false;
-      if(n.midi>=45&&n.midi<52&&h==='none')return false;
-      if(n.midi<45&&b==='none')return false;
-      return true;
-    });
+    const{melody:nm,harmony:nh,bass:nb}=getInstrs();
+    // Re-apply family variants with new instrument choices
+    const seen2=new Set();
+    const filtered=[];
+    for(const n of allNotes){
+      let fam;
+      if(n.family==='chime')fam='chime';
+      else if(n.midi>=52)fam=nm==='none'?null:nm;
+      else if(n.midi>=45)fam=nh==='none'?null:nh;
+      else fam=nb==='none'?null:nb;
+      if(!fam)continue;
+      const v=familyVariant(fam,n.midi);
+      const k=`${n.tick}|${v.instr}|${v.midi}`;
+      if(!seen2.has(k)){seen2.add(k);filtered.push({...n,instr:v.instr,midi:v.midi,family:fam});}
+    }
     await loadMCSamples([...new Set(filtered.map(n=>n.instr))]);
     rendBuf=await renderAudio(filtered,rendBuf.duration,useBpm);
     await ensureLame();

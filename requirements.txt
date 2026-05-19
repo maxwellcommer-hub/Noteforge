@@ -3,5 +3,3 @@ flask-cors==4.0.1
 yt-dlp
 gunicorn==22.0.0
 gevent==24.2.1
-basic-pitch==0.4.0
-numpy==1.26.4

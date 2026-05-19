@@ -8,27 +8,17 @@ CORS(app)
 
 COOKIES_FILE = '/tmp/yt_cookies.txt'
 
-def write_cookies_file():
-    """Write cookies from env var to file every time (handles restarts cleanly)."""
-    cookies_env = os.environ.get('YOUTUBE_COOKIES', '').strip()
-    if not cookies_env:
+def write_cookies():
+    env = os.environ.get('YOUTUBE_COOKIES', '').strip()
+    if not env:
         return False
-    # Replace literal \n or \t with real whitespace (env vars sometimes escape these)
-    cookies_env = cookies_env.replace('\\t', '\t').replace('\\n', '\n')
-    # Netscape cookie files use tabs as delimiters — make sure they're real tabs
-    lines = []
-    for line in cookies_env.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        lines.append(line)
-    content = '\n'.join(lines) + '\n'
+    env = env.replace('\\t', '\t').replace('\\n', '\n')
     with open(COOKIES_FILE, 'w') as f:
-        f.write(content)
+        f.write('\n'.join(l.strip() for l in env.splitlines() if l.strip()) + '\n')
     return True
 
-def get_cookies_args():
-    if write_cookies_file():
+def cookie_args():
+    if write_cookies():
         return ['--cookies', COOKIES_FILE]
     return []
 
@@ -42,34 +32,18 @@ def sounds(filename):
 
 @app.route('/sounds-list')
 def sounds_list():
-    sounds_dir = os.path.join(BASE_DIR, 'sounds')
-    files = []
-    if os.path.exists(sounds_dir):
-        files = [os.path.basename(f) for f in glob.glob(os.path.join(sounds_dir, '*.ogg'))]
+    d = os.path.join(BASE_DIR, 'sounds')
+    files = [os.path.basename(f) for f in glob.glob(os.path.join(d, '*.ogg'))] if os.path.exists(d) else []
     return jsonify({'sounds': files})
 
-# ── Debug endpoint — visit /debug in browser to check cookie status
 @app.route('/debug')
 def debug():
-    cookies_env = os.environ.get('YOUTUBE_COOKIES', '')
-    cookies_written = write_cookies_file()
-    cookie_file_exists = os.path.exists(COOKIES_FILE)
-    cookie_file_lines = 0
-    cookie_file_preview = ''
-    if cookie_file_exists:
-        with open(COOKIES_FILE) as f:
-            lines = f.readlines()
-            cookie_file_lines = len(lines)
-            # Show first line only (safe, just the header)
-            cookie_file_preview = lines[0].strip() if lines else ''
+    write_cookies()
     return jsonify({
-        'YOUTUBE_COOKIES_env_length': len(cookies_env),
-        'YOUTUBE_COOKIES_set': bool(cookies_env),
-        'cookies_file_written': cookies_written,
-        'cookies_file_exists': cookie_file_exists,
-        'cookies_file_lines': cookie_file_lines,
-        'cookies_file_first_line': cookie_file_preview,
-        'sounds_dir_files': len(glob.glob(os.path.join(BASE_DIR, 'sounds', '*.ogg'))),
+        'cookies_env_set': bool(os.environ.get('YOUTUBE_COOKIES')),
+        'cookies_file_exists': os.path.exists(COOKIES_FILE),
+        'cookies_file_lines': len(open(COOKIES_FILE).readlines()) if os.path.exists(COOKIES_FILE) else 0,
+        'sounds_count': len(glob.glob(os.path.join(BASE_DIR, 'sounds', '*.ogg'))),
     })
 
 @app.route('/ytdl', methods=['POST'])
@@ -81,162 +55,97 @@ def ytdl():
     if 'youtube.com' not in url and 'youtu.be' not in url:
         return jsonify({'error': 'Not a YouTube URL'}), 400
 
-    tmp_dir = tempfile.mkdtemp()
-    out_template = os.path.join(tmp_dir, 'audio.%(ext)s')
-    cookie_args = get_cookies_args()
+    tmp = tempfile.mkdtemp()
+    out = os.path.join(tmp, 'audio.%(ext)s')
+    ck = cookie_args()
 
     try:
         # Get title
         title = 'YouTube Audio'
         try:
             tr = subprocess.run(
-                ['yt-dlp', '--no-playlist', '--get-title', '--no-warnings']
-                + cookie_args + [url],
-                capture_output=True, text=True, timeout=20
-            )
+                ['yt-dlp', '--no-playlist', '--get-title', '--no-warnings'] + ck + [url],
+                capture_output=True, text=True, timeout=20)
             if tr.returncode == 0 and tr.stdout.strip():
                 title = tr.stdout.strip().splitlines()[0]
         except Exception:
             pass
 
-        # Build download strategies — cookies first if available
+        # Try strategies in order — bestaudio without format restriction first
         strategies = []
-        if cookie_args:
-            strategies.append(
-                ['yt-dlp', '--no-playlist', '--no-warnings',
-                 '-f', 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio',
-                 '-o', out_template] + cookie_args + [url]
-            )
-        # iOS client (avoids bot check differently)
-        strategies.append(
+        if ck:
+            strategies.append(['yt-dlp', '--no-playlist', '--no-warnings',
+                '-f', 'bestaudio', '-o', out] + ck + [url])
+        strategies += [
+            # No format filter — just grab whatever works
+            ['yt-dlp', '--no-playlist', '--no-warnings',
+             '-f', 'bestaudio', '-o', out] + ck + [url],
+            # iOS client
             ['yt-dlp', '--no-playlist', '--no-warnings',
              '--extractor-args', 'youtube:player_client=ios',
-             '-f', 'bestaudio', '-o', out_template] + cookie_args + [url]
-        )
-        # tv_embedded client
-        strategies.append(
+             '-o', out] + ck + [url],
+            # Any format at all
             ['yt-dlp', '--no-playlist', '--no-warnings',
-             '--extractor-args', 'youtube:player_client=tv_embedded',
-             '-f', 'bestaudio', '-o', out_template] + cookie_args + [url]
-        )
+             '-o', out] + ck + [url],
+        ]
 
         last_err = ''
-        success = False
+        ok = False
         for cmd in strategies:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-            if result.returncode == 0:
-                success = True
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            if r.returncode == 0:
+                ok = True
                 break
-            last_err = result.stderr.strip()
+            last_err = r.stderr.strip()
 
-        if not success:
+        if not ok:
             lines = [l for l in last_err.splitlines() if 'ERROR' in l]
-            msg = lines[-1] if lines else last_err[-300:] if last_err else 'All strategies failed'
+            msg = lines[-1] if lines else last_err[-300:] if last_err else 'Download failed'
             if 'Sign in' in msg or 'bot' in msg.lower():
-                has_cookies = bool(cookie_args)
-                if has_cookies:
-                    msg = 'Bot check failed even with cookies — your cookies may have expired. Re-export from browser and update the Railway YOUTUBE_COOKIES variable.'
-                else:
-                    msg = 'YouTube requires authentication. Add YOUTUBE_COOKIES to Railway environment variables.'
+                msg = 'YouTube bot check failed. Try re-exporting cookies from your browser and updating YOUTUBE_COOKIES in Railway.'
+            elif 'format' in msg.lower():
+                msg = 'No audio format available for this video. Try a different video.'
             return jsonify({'error': msg}), 500
 
-        # Find output file
-        files = [f for f in os.listdir(tmp_dir) if f.startswith('audio') and not f.endswith('.part')]
+        # Find file
+        files = [f for f in os.listdir(tmp) if f.startswith('audio') and not f.endswith('.part')]
         if not files:
-            return jsonify({'error': 'Download produced no output file'}), 500
+            return jsonify({'error': 'No output file produced'}), 500
 
-        audio_path = os.path.join(tmp_dir, files[0])
+        src = os.path.join(tmp, files[0])
+        mp3 = os.path.join(tmp, 'out.mp3')
 
         # Convert to MP3
-        mp3_path = os.path.join(tmp_dir, 'final.mp3')
-        ffmpeg = subprocess.run(
-            ['ffmpeg', '-i', audio_path, '-vn', '-ar', '44100',
-             '-ac', '2', '-b:a', '192k', '-y', mp3_path],
-            capture_output=True, timeout=60
-        )
-        if ffmpeg.returncode != 0 or not os.path.exists(mp3_path):
-            mp3_path = audio_path
+        subprocess.run(
+            ['ffmpeg', '-i', src, '-vn', '-ar', '44100', '-ac', '2', '-b:a', '192k', '-y', mp3],
+            capture_output=True, timeout=60)
 
-        def stream_and_cleanup():
+        final = mp3 if os.path.exists(mp3) else src
+
+        def stream():
             try:
-                with open(mp3_path, 'rb') as f:
+                with open(final, 'rb') as f:
                     while True:
                         chunk = f.read(65536)
-                        if not chunk:
-                            break
+                        if not chunk: break
                         yield chunk
             finally:
-                try:
-                    shutil.rmtree(tmp_dir)
-                except Exception:
-                    pass
+                shutil.rmtree(tmp, ignore_errors=True)
 
-        safe_title = title.encode('ascii', 'replace').decode('ascii')
-        return Response(
-            stream_and_cleanup(),
-            mimetype='audio/mpeg',
-            headers={'X-Song-Title': safe_title}
-        )
+        return Response(stream(), mimetype='audio/mpeg',
+            headers={'X-Song-Title': title.encode('ascii','replace').decode('ascii')})
 
     except subprocess.TimeoutExpired:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
-        return jsonify({'error': 'Download timed out — try a shorter song'}), 500
+        shutil.rmtree(tmp, ignore_errors=True)
+        return jsonify({'error': 'Timed out — try a shorter song'}), 500
     except Exception as e:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
+        shutil.rmtree(tmp, ignore_errors=True)
         return jsonify({'error': str(e)}), 500
 
 @app.route('/health')
 def health():
-    return jsonify({'status': 'ok', 'youtube_cookies': bool(get_cookies_args())})
+    return jsonify({'status': 'ok'})
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port)
-
-# ── Basic Pitch ML transcription endpoint
-# Runs Spotify's Basic Pitch model server-side for accurate note detection
-@app.route('/transcribe', methods=['POST'])
-def transcribe():
-    import tempfile, shutil
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file uploaded'}), 400
-
-    f = request.files['file']
-    tmp_dir = tempfile.mkdtemp()
-    mp3_path = os.path.join(tmp_dir, 'input.mp3')
-    wav_path = os.path.join(tmp_dir, 'input.wav')
-
-    try:
-        f.save(mp3_path)
-
-        # Convert to WAV for Basic Pitch
-        subprocess.run(
-            ['ffmpeg', '-i', mp3_path, '-ar', '22050', '-ac', '1', '-y', wav_path],
-            capture_output=True, timeout=30
-        )
-
-        # Run Basic Pitch
-        from basic_pitch.inference import predict
-        from basic_pitch import ICASSP_2022_MODEL_PATH
-
-        model_output, midi_data, note_events = predict(wav_path)
-
-        # Convert note events to our format
-        # note_events: list of (start_time, end_time, pitch_midi, amplitude, pitch_bends)
-        notes = []
-        for start, end, pitch, amp, _ in note_events:
-            notes.append({
-                'timeSec': float(start),
-                'durSec': float(end - start),
-                'midi': int(pitch),
-                'vel': float(min(1.0, amp))
-            })
-
-        return jsonify({'notes': notes, 'count': len(notes)})
-
-    except ImportError:
-        return jsonify({'error': 'basic-pitch not installed'}), 500
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-    finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)

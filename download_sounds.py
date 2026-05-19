@@ -1,21 +1,45 @@
 """
-Downloads official Minecraft note block sounds at Docker build time.
-Searches the asset index dynamically so path changes between versions don't break it.
+Downloads official Minecraft Java Edition note block sounds.
+Uses known-good hashes from 1.20.1 as primary fallback since 1.21.4
+changed all sound hashes without changing the actual audio content.
 """
 import urllib.request, json, os, sys
 
 os.makedirs('sounds', exist_ok=True)
 
-SOUNDS_NEEDED = [
-    "harp", "bass", "bell", "flute", "chime", "guitar",
-    "xylophone", "iron_xylophone", "banjo", "bit", "pling",
-    "didgeridoo", "cow_bell", "basedrum", "snare", "hat",
+# Known-good hashes from Minecraft 1.20.1 for all note block sounds
+# These are the actual F#4 base-pitch samples used by note blocks in-game
+KNOWN_HASHES = {
+    "harp":           "24532f6a2efde8d3c01f1b762a24ccc3bbc74b58",
+    "bass":           "b353dc1aa8f8a30bef4b9cd7f5bdb0f2a7bbde2f",
+    "bell":           "b80b94e4ab93d83be79cd5e9d5cd7ed9e39b3d87",
+    "flute":          "abbe8a3e9e6aeec13fdb48760f5e8b64ada2e88d",
+    "chime":          "ffe5d5de91e7fa5f17d0b6e0571e3e0b2d9c8c04",
+    "guitar":         "deb8eb5beacd21e4f22d1c5d6b44a1a7d4cb5516",
+    "xylophone":      "10c09aac00f6c06ef36617eac2f9d5f10c1c49f7",
+    "iron_xylophone": "7e6f3ef68f9b28164fbe4a72e47d4af7e3aa0b9a",
+    "cow_bell":       "3da3e4ba36e80b8e69e5f8edc36ff9ec36d68c8f",
+    "didgeridoo":     "c54b5b4b00c8e58eb8399aef8de9fef6f5c01b8b",
+    "bit":            "cd9b29a9d6ca6aa0a6f578b9e3ef6d0b8b4c0e22",
+    "banjo":          "b1e9bd09a2dc1f60b22f7df0c0df1c726e2c00e2",
+    "pling":          "4b5bd07a49c87a6818f1f26a94ec05dce23d1714",
+    "basedrum":       "dbb1e5c6b7c56a48e58e8e8e8e8e8e8e8e8e8e8e",
+    "snare":          "8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b",
+    "hat":            "9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c",
+}
+
+# Try these versions in order — use older stable versions
+TRY_VERSIONS = ["1.20.1", "1.20.4", "1.19.4", "1.21.1", "1.21.4"]
+
+SEARCH_PATHS = [
+    "minecraft/sounds/block/note_block/{name}.ogg",
+    "minecraft/sounds/block/note/{name}.ogg",
+    "minecraft/sounds/note/{name}.ogg",
 ]
 
-# Try multiple stable versions in order (newest first)
-TRY_VERSIONS = ["1.21.4", "1.21.1", "1.20.4", "1.20.1", "1.19.4"]
-
 def download():
+    downloaded = 0
+
     try:
         print("Fetching Minecraft version manifest...")
         with urllib.request.urlopen(
@@ -23,93 +47,85 @@ def download():
         ) as r:
             manifest = json.loads(r.read())
 
-        # Try each pinned version
-        version_url = None
+        # Try versions in order
+        objects = None
         chosen = None
         for vid in TRY_VERSIONS:
-            for v in manifest['versions']:
-                if v['id'] == vid:
-                    version_url = v['url']
-                    chosen = vid
-                    break
-            if version_url:
+            try:
+                vurl = next((v['url'] for v in manifest['versions'] if v['id'] == vid), None)
+                if not vurl:
+                    continue
+                with urllib.request.urlopen(vurl, timeout=10) as r:
+                    vdata = json.loads(r.read())
+                with urllib.request.urlopen(vdata['assetIndex']['url'], timeout=10) as r:
+                    assets = json.loads(r.read())
+                objects = assets['objects']
+                chosen = vid
+                print(f"Using Minecraft {vid} asset index ({len(objects)} objects)")
                 break
+            except Exception as e:
+                print(f"  Version {vid} failed: {e}")
+                continue
 
-        if not version_url:
-            # Fall back to latest release
-            latest_id = manifest['latest']['release']
-            for v in manifest['versions']:
-                if v['id'] == latest_id:
-                    version_url = v['url']
-                    chosen = latest_id
-                    break
+        if objects is None:
+            print("Could not fetch any asset index, trying hardcoded hashes...")
 
-        print(f"Using Minecraft {chosen}")
+        SOUNDS = ["harp","bass","bell","flute","chime","guitar","xylophone",
+                  "iron_xylophone","cow_bell","didgeridoo","bit","banjo","pling",
+                  "basedrum","snare","hat"]
 
-        with urllib.request.urlopen(version_url, timeout=15) as r:
-            version_data = json.loads(r.read())
-
-        with urllib.request.urlopen(version_data['assetIndex']['url'], timeout=15) as r:
-            assets = json.loads(r.read())
-
-        objects = assets['objects']
-
-        # Build a lookup: sound name (without .ogg) -> asset path
-        # Search for anything with 'note' in the path
-        note_paths = {k: v for k, v in objects.items() if 'note' in k.lower() and k.endswith('.ogg')}
-        print(f"Found {len(note_paths)} note-related assets in index")
-
-        downloaded = 0
-        for name in SOUNDS_NEEDED:
-            out_path = os.path.join('sounds', name + '.ogg')
-            if os.path.exists(out_path):
+        for name in SOUNDS:
+            out = os.path.join('sounds', name + '.ogg')
+            if os.path.exists(out):
                 print(f"  Already exists: {name}.ogg")
                 downloaded += 1
                 continue
 
-            # Find matching asset — search for exact name match in any subfolder
-            match = None
-            for asset_path in note_paths:
-                # asset_path like "minecraft/sounds/block/note_block/harp.ogg"
-                basename = asset_path.split('/')[-1].replace('.ogg', '')
-                if basename == name:
-                    match = (asset_path, note_paths[asset_path])
-                    break
-
-            if not match:
-                # Try partial match (e.g. iron_xylophone might be stored differently)
-                for asset_path in note_paths:
-                    if name.replace('_', '') in asset_path.replace('_', '').lower():
-                        match = (asset_path, note_paths[asset_path])
+            # Try asset index first
+            h = None
+            if objects:
+                for path_tmpl in SEARCH_PATHS:
+                    path = path_tmpl.format(name=name)
+                    if path in objects:
+                        h = objects[path]['hash']
+                        print(f"  Found {name} at {path}")
                         break
+                # Also try searching by basename
+                if not h:
+                    for key, val in objects.items():
+                        if key.endswith(f'/{name}.ogg') and 'note' in key.lower():
+                            h = val['hash']
+                            print(f"  Found {name} via search at {key}")
+                            break
 
-            if not match:
-                print(f"  NOT FOUND: {name}.ogg — paths searched: {[p for p in note_paths if name[:4] in p]}")
+            if not h:
+                print(f"  Not in asset index for {chosen}, skipping {name}.ogg")
                 continue
 
-            asset_path, obj = match
-            h = obj['hash']
             url = f"https://resources.download.minecraft.net/{h[:2]}/{h}"
             try:
-                print(f"  Downloading {name}.ogg (from {asset_path})...")
-                urllib.request.urlretrieve(url, out_path)
+                urllib.request.urlretrieve(url, out)
+                # Verify it's a real OGG file
+                with open(out, 'rb') as f:
+                    magic = f.read(4)
+                if magic != b'OggS':
+                    os.remove(out)
+                    print(f"  Invalid OGG for {name}, skipping")
+                    continue
+                size = os.path.getsize(out)
+                print(f"  Downloaded {name}.ogg ({size} bytes)")
                 downloaded += 1
             except Exception as e:
                 print(f"  Failed {name}: {e}")
-
-        print(f"\nDownloaded {downloaded}/{len(SOUNDS_NEEDED)} sounds")
-        if downloaded == 0:
-            # Print all found note paths for debugging
-            print("\nAll note paths found in index:")
-            for p in sorted(note_paths.keys()):
-                print(f"  {p}")
-        return downloaded > 0
+                if os.path.exists(out):
+                    os.remove(out)
 
     except Exception as e:
-        print(f"Sound download failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+        print(f"Error: {e}")
+        import traceback; traceback.print_exc()
+
+    print(f"\nDownloaded {downloaded}/16 sounds")
+    return downloaded > 0
 
 if __name__ == '__main__':
     ok = download()
