@@ -416,7 +416,7 @@ canvas{display:block;width:100%}
 <!-- Header -->
 <div class="hdr">
   <div class="logo">Note<span>Forge</span></div>
-  <div class="sub">MP3 / YouTube ➜ Minecraft Note Blocks</div>
+  <div class="sub">MP3 ➜ Minecraft Note Blocks</div>
   <div class="mc-badge">⛏ JAVA EDITION COMPATIBLE</div>
 </div>
 
@@ -425,7 +425,7 @@ canvas{display:block;width:100%}
   <div class="panel-title">01 SOURCE</div>
   <div class="tabs">
     <button class="tab on" onclick="switchTab('mp3')">🎵 MP3 FILE</button>
-    <button class="tab" onclick="switchTab('yt')">▶ YOUTUBE</button>
+    <button class="tab" onclick="switchTab('yt')">▶ YOUTUBE HELP</button>
   </div>
 
   <div class="pane on" id="pane-mp3">
@@ -439,11 +439,22 @@ canvas{display:block;width:100%}
   </div>
 
   <div class="pane" id="pane-yt">
-    <div class="yt-row">
-      <input class="yt-in" id="ytUrl" type="url" placeholder="https://youtube.com/watch?v=...">
-      <button class="btn-yt" id="btnYt" onclick="fetchYt()">▶ FETCH</button>
+    <div style="font-size:13px;color:var(--dgray);line-height:1.8;margin-bottom:12px">
+      YouTube cannot be downloaded directly from a server due to Google bot detection.<br>
+      Use the free tool below to get an MP3 in 2 steps, then upload it here.
     </div>
-    <div class="yt-st" id="ytSt">Paste a YouTube link above and tap Fetch</div>
+    <div class="yt-row" style="margin-bottom:10px">
+      <input class="yt-in" id="ytUrl" type="url" placeholder="Paste YouTube URL here...">
+      <button class="btn-yt" id="btnOpenCobalt" onclick="openCobalt()">OPEN ↗</button>
+    </div>
+    <div style="font-size:12px;color:var(--dgray);line-height:1.9;
+      background:var(--dp);padding:10px 12px;border-left:3px solid var(--gold)">
+      <span style="color:var(--gold);font-family:'Press Start 2P',monospace;font-size:8px">HOW TO:</span><br>
+      1. Paste your YouTube link above and tap OPEN ↗<br>
+      2. On cobalt.tools — tap <span style="color:var(--aqua)">Download</span> → select <span style="color:var(--aqua)">Audio only</span><br>
+      3. Save the MP3 to your phone/computer<br>
+      4. Come back here → switch to <span style="color:var(--green)">MP3 FILE</span> tab → upload it
+    </div>
   </div>
 
   <div class="dbar" id="dbar">
@@ -793,39 +804,15 @@ async function loadFile(f){
   reader.readAsArrayBuffer(f);
 }
 
-// ── YouTube fetch
-async function fetchYt(){
-  const url=$('ytUrl').value.trim();
-  if(!url){ytSt('Paste a YouTube link first','err');return;}
-  if(!url.includes('youtube.com')&&!url.includes('youtu.be')){ytSt('Not a YouTube URL','err');return;}
-  $('btnYt').disabled=true;
-  ytSt('Downloading via server (may take 15-30s)...','load');
-  try{
-    // Server downloads the audio and streams it back as MP3 directly
-    // This avoids CORS entirely and handles bot detection server-side
-    const res=await fetch('/ytdl',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({url})
-    });
-    if(!res.ok){
-      let msg='Server error '+res.status;
-      try{const d=await res.json();msg=d.error||msg;}catch(e){}
-      throw new Error(msg);
-    }
-    ytSt('Decoding audio...','load');
-    const title=res.headers.get('X-Song-Title')||'youtube-song';
-    const ab=await res.arrayBuffer();
-    ensureCtx();
-    srcBuf=await audioCtx.decodeAudioData(ab);
-    srcName=title;
-    ytSt('✓ Loaded: '+title,'ok');
-    $('res').classList.remove('on');
-    await afterLoad();
-  }catch(e){ytSt('Failed: '+e.message,'err');console.error(e);}
-  finally{$('btnYt').disabled=false;}
+// ── YouTube helper — opens cobalt.tools with the URL pre-filled
+function openCobalt(){
+  const url=document.getElementById('ytUrl').value.trim();
+  if(!url){alert('Paste a YouTube URL first');return;}
+  // cobalt.tools is a free, open source YouTube to MP3 converter
+  // It works in the browser without any bot detection issues
+  const cobaltUrl='https://cobalt.tools/';
+  window.open(cobaltUrl,'_blank');
 }
-function ytSt(msg,cls){const e=$('ytSt');e.textContent=msg;e.className='yt-st'+(cls?' '+cls:'');}
 
 // ── After audio loads
 async function afterLoad(){
