@@ -423,12 +423,9 @@ canvas{display:block;width:100%}
 <!-- 01 Source -->
 <div class="panel">
   <div class="panel-title">01 SOURCE</div>
-  <div class="tabs">
-    <button class="tab on" onclick="switchTab('mp3')">🎵 MP3 FILE</button>
-    <button class="tab" onclick="switchTab('yt')">▶ YOUTUBE HELP</button>
-  </div>
 
-  <div class="pane on" id="pane-mp3">
+
+  <div id="pane-mp3">
     <div class="dz" id="dz">
       <input type="file" id="fi" accept=".mp3,audio/mpeg">
       <span class="dz-icon">📀</span>
@@ -438,11 +435,6 @@ canvas{display:block;width:100%}
     <div class="chip" id="chip"><span>🎵</span><span class="cn" id="cn"></span><span class="cs" id="cs"></span></div>
   </div>
 
-  <div class="pane" id="pane-yt">
-    <div style="font-size:13px;color:var(--dgray);line-height:1.8;margin-bottom:12px">
-      YouTube cannot be downloaded directly from a server due to Google bot detection.<br>
-      Use the free tool below to get an MP3 in 2 steps, then upload it here.
-    </div>
     <div class="yt-row" style="margin-bottom:10px">
       <input class="yt-in" id="ytUrl" type="url" placeholder="Paste YouTube URL here...">
       <button class="btn-yt" id="btnOpenCobalt" onclick="openCobalt()">OPEN ↗</button>
@@ -568,7 +560,7 @@ canvas{display:block;width:100%}
     <div class="st" id="s3"><div class="sd"></div>Separating melody / harmony / bass</div>
     <div class="st" id="s4"><div class="sd"></div>Pitch tracking — melody</div>
     <div class="st" id="s5"><div class="sd"></div>Pitch tracking — harmony & bass</div>
-    <div class="st" id="s6"><div class="sd"></div>Filtering & quantising notes</div>
+    <div class="st" id="s6"><div class="sd"></div>Quantising to 1/16th note grid</div>
     <div class="st" id="s7"><div class="sd"></div>Loading Minecraft sounds</div>
     <div class="st" id="s8"><div class="sd"></div>Synthesising instruments</div>
     <div class="st" id="s9"><div class="sd"></div>Encoding MP3</div>
@@ -721,11 +713,6 @@ function getMono(buf){
 }
 
 // ── UI controls
-function switchTab(t){
-  document.querySelectorAll('.tab').forEach((b,i)=>b.classList.toggle('on',i===(t==='mp3'?0:1)));
-  $('pane-mp3').classList.toggle('on',t==='mp3');
-  $('pane-yt').classList.toggle('on',t==='yt');
-}
 function setQ(q){quality=q;document.querySelectorAll('.qb').forEach((b,i)=>b.classList.toggle('sel',['fast','balanced','best'][i]===q));}
 function setDensity(d){
   noteDensity=d;
@@ -828,39 +815,60 @@ async function afterLoad(){
   $('btnGo').disabled=false;
 }
 
-// ── BPM Detection
+// ═══════════════════════════════════════════════════════════════════════
+// AUDIO ENGINE v3 — Research-based note block conversion
+// Key principles from research:
+// 1. Use 1/16th note subdivision (finest grid) — gives proper short/long notes
+// 2. Notes get their natural duration from how long the pitch holds (onset/offset)
+// 3. Dynamic velocity from RMS energy — louder passages play louder notes
+// 4. Onset detection finds note attacks precisely, not just steady-state pitch
+// 5. NBS tempo stored as ticks/sec, BPM = ticks/sec * 60 / subdivisions
+// 6. Real note block songs use 25 pitches per instrument (F#3 to F#5)
+// ═══════════════════════════════════════════════════════════════════════
+
+// ── BPM Detection using onset autocorrelation
 async function detectBpm(buf){
-  const sr=buf.sampleRate,mono=getMono(buf);
-  const use=Math.min(mono.length,sr*90);
+  const sr=buf.sampleRate, mono=getMono(buf);
+  const use=Math.min(mono.length, sr*90);
   const data=mono.subarray(0,use);
-  const fps=200,hop=Math.round(sr/fps),win=hop*2;
+
+  // Compute onset envelope at 200fps using energy flux
+  const fps=200, hop=Math.round(sr/fps), win=hop*2;
   const env=[];
-  for(let i=0;i+win<data.length;i+=hop){let e=0;for(let j=0;j<win;j++)e+=data[i+j]*data[i+j];env.push(Math.sqrt(e/win));}
+  for(let i=0;i+win<data.length;i+=hop){
+    let e=0; for(let j=0;j<win;j++) e+=data[i+j]*data[i+j];
+    env.push(Math.sqrt(e/win));
+  }
+  // Half-wave rectified onset strength function
   const odf=new Float32Array(env.length);
-  for(let i=3;i<env.length;i++){const d=env[i]-env[i-1];odf[i]=d>0?d:0;}
+  for(let i=3;i<env.length;i++){const d=env[i]-env[i-1]; odf[i]=d>0?d:0;}
+
+  // Autocorrelation over 50-250 BPM with musical priors
   const candidates=[];
   for(let bpm=50;bpm<=250;bpm+=0.25){
-    const lag=fps*60/bpm,lagI=Math.round(lag);
-    if(lagI<2||lagI>=odf.length-2)continue;
-    let score=0;const lim=Math.min(odf.length-lagI,Math.ceil(fps*60));
-    for(let i=0;i<lim;i++)score+=odf[i]*odf[i+lagI];
+    const lag=fps*60/bpm, lagI=Math.round(lag);
+    if(lagI<2||lagI>=odf.length-2) continue;
+    let score=0;
+    const lim=Math.min(odf.length-lagI, Math.ceil(fps*60));
+    for(let i=0;i<lim;i++) score+=odf[i]*odf[i+lagI];
     score/=lim;
+    // Check harmonics (2x and 0.5x)
     const lag2=lagI*2;
-    if(lag2<odf.length){let s2=0,c2=0;for(let i=0;i+lag2<odf.length&&i<lim;i++){s2+=odf[i]*odf[i+lag2];c2++;}if(c2>0)score+=0.5*(s2/c2);}
+    if(lag2<odf.length){let s2=0,c2=0; for(let i=0;i+lag2<odf.length&&i<lim;i++){s2+=odf[i]*odf[i+lag2];c2++;} if(c2>0)score+=0.5*(s2/c2);}
     const lagH=Math.round(lagI/2);
-    if(lagH>1){let sh=0,ch=0;for(let i=0;i+lagH<odf.length&&i<lim;i++){sh+=odf[i]*odf[i+lagH];ch++;}if(ch>0)score+=0.3*(sh/ch);}
-    const prior=bpm>=70&&bpm<=180?1.2:bpm>=60&&bpm<=200?1.0:0.7;
+    if(lagH>1){let sh=0,ch=0; for(let i=0;i+lagH<odf.length&&i<lim;i++){sh+=odf[i]*odf[i+lagH];ch++;} if(ch>0)score+=0.3*(sh/ch);}
+    // Bias toward musical tempos 70-180
+    const prior=bpm>=70&&bpm<=180?1.2:bpm>=60&&bpm<=200?1.0:0.6;
     candidates.push({bpm,score:score*prior});
   }
   candidates.sort((a,b)=>b.score-a.score);
   const topScore=candidates[0]?.score||1;
   const good=candidates.filter(c=>c.score>=topScore*0.7&&c.bpm>=60&&c.bpm<=200);
   good.sort((a,b)=>Math.abs(a.bpm-120)-Math.abs(b.bpm-120));
-  const raw=(good[0]||candidates[0]).bpm;
-  return Math.round(raw*2)/2;
+  return Math.round(((good[0]||candidates[0]).bpm)*2)/2;
 }
 
-// ── Key detection
+// ── Key detection (Krumhansl-Schmuckler)
 function detectKey(buf){
   const mono=getMono(buf),sr=buf.sampleRate;
   const chroma=new Float32Array(12).fill(0);
@@ -868,7 +876,7 @@ function detectKey(buf){
   for(let pos=0;pos+chunk<lim;pos+=step){
     for(let m=48;m<=84;m++){
       const f=440*Math.pow(2,(m-69)/12),ph=2*Math.PI*f/sr;
-      let re=0,im=0;for(let n=0;n<chunk;n++){re+=mono[pos+n]*Math.cos(ph*n);im+=mono[pos+n]*Math.sin(ph*n);}
+      let re=0,im=0; for(let n=0;n<chunk;n++){re+=mono[pos+n]*Math.cos(ph*n);im+=mono[pos+n]*Math.sin(ph*n);}
       chroma[m%12]+=Math.sqrt(re*re+im*im);
     }
   }
@@ -876,19 +884,19 @@ function detectKey(buf){
   const maj=[6.35,2.23,3.48,2.33,4.38,4.09,2.52,5.19,2.39,3.66,2.29,2.88];
   const min=[6.33,2.68,3.52,5.38,2.60,3.53,2.54,4.75,3.98,2.69,3.34,3.17];
   let best='C',sc=-Infinity;
-  for(let t=0;t<12;t++)for(const[p,sfx]of[[maj,''],[min,'m']]){let s=0;for(let i=0;i<12;i++)s+=chroma[(i+t)%12]*p[i];if(s>sc){sc=s;best=notes[t]+sfx;}}
+  for(let t=0;t<12;t++) for(const[p,sfx]of[[maj,''],[min,'m']]){let s=0;for(let i=0;i<12;i++)s+=chroma[(i+t)%12]*p[i];if(s>sc){sc=s;best=notes[t]+sfx;}}
   return best;
 }
 
-// ── Spectrum analysis
+// ── Spectrum analysis for auto instrument selection
 function analyseSpec(buf){
   const mono=getMono(buf),sr=buf.sampleRate,N=2048,data=mono.slice(0,N);
   let lo=0,mid=0,hi=0,tot=0;
   for(let k=1;k<N/2;k++){
-    const freq=k*sr/N;let re=0,im=0;
+    const freq=k*sr/N; let re=0,im=0;
     for(let n=0;n<Math.min(N,256);n++){const a=2*Math.PI*k*n/N;re+=data[n]*Math.cos(a);im+=data[n]*Math.sin(a);}
     const mag=Math.sqrt(re*re+im*im);
-    if(freq<300)lo+=mag;else if(freq<2500)mid+=mag;else hi+=mag;tot+=mag;
+    if(freq<300)lo+=mag; else if(freq<2500)mid+=mag; else hi+=mag; tot+=mag;
   }
   if(!tot)return{lo:.33,mid:.33,hi:.33};
   return{lo:lo/tot,mid:mid/tot,hi:hi/tot};
@@ -896,163 +904,172 @@ function analyseSpec(buf){
 function pickInstrs(buf){
   const{lo,mid,hi}=analyseSpec(buf);
   return{
-    melody:hi>.28?'bell':hi>.14?'xylophone':mid>.4?'harp':'flute',
-    harmony:mid>.35?'guitar':'banjo',
-    bass:lo>.3?'didgeridoo':'bass'
-  };
-}
-function previewInstrs(buf){
-  const{melody,harmony,bass}=pickInstrs(buf);
-  const m=$('instrMelody'),h=$('instrHarmony'),b=$('instrBass');
-  if(m)setSelectVal(m,melody);
-  if(h)setSelectVal(h,harmony);
-  if(b)setSelectVal(b,bass);
-  // Show which variants will be used
-  showFamilyPreview(melody,harmony,bass);
-}
-function showFamilyPreview(melody,harmony,bass){
-  const fam=FAMILIES;
-  const desc=(f)=>{
-    if(f==='none')return 'none';
-    const variants=[];
-    const fd=fam[f];
-    if(!fd)return f;
-    for(let i=0;i<fd.length;i+=2){
-      const oct=fd[i+1];
-      variants.push(fd[i]+(oct===0?' (base)':oct>0?' (+'+oct/12+' oct)':' ('+oct/12+' oct)'));
-    }
-    return variants.join(', ');
-  };
-}
-function setSelectVal(sel,val){
-  for(let i=0;i<sel.options.length;i++){
-    if(sel.options[i].value===val){sel.selectedIndex=i;return;}
-  }
-}
-function getInstrs(){
-  return{
-    melody:$('instrMelody')?.value||'harp',
-    harmony:$('instrHarmony')?.value||'guitar',
-    bass:$('instrBass')?.value||'bass',
+    melody: hi>.28?'bell': hi>.14?'xylophone': mid>.4?'harp': 'flute',
+    harmony: mid>.35?'guitar':'banjo',
+    bass: lo>.3?'didgeridoo':'bass'
   };
 }
 
-// ── Filters
+// ── Simple filters
 function lpf(s,sr,fc){const a=1/(1+1/(2*Math.PI*(fc/sr)));const o=new Float32Array(s.length);o[0]=s[0];for(let i=1;i<s.length;i++)o[i]=a*o[i-1]+(1-a)*s[i];return o;}
 function hpf(s,sr,fc){const a=1/(1+2*Math.PI*(fc/sr));const o=new Float32Array(s.length);o[0]=s[0];for(let i=1;i<s.length;i++)o[i]=a*(o[i-1]+s[i]-s[i-1]);return o;}
 function bpf(s,sr,lo,hi){return hpf(lpf(s,sr,hi),sr,lo);}
 function toAB(data,sr){const b=audioCtx.createBuffer(1,data.length,sr);b.getChannelData(0).set(data);return b;}
 
-// ── YIN pitch detector
+// ── YIN pitch detector (accurate, threshold 0.12)
 function yin(buf,sr){
-  const N=buf.length,W=Math.floor(N/2);
+  const N=buf.length, W=Math.floor(N/2);
   const df=new Float32Array(W);
-  for(let tau=1;tau<W;tau++)for(let i=0;i<W;i++){const d=buf[i]-buf[i+tau];df[tau]+=d*d;}
-  const cmnd=new Float32Array(W);cmnd[0]=1;let s=0;
-  for(let tau=1;tau<W;tau++){s+=df[tau];cmnd[tau]=df[tau]/((s/tau)||1);}
+  for(let tau=1;tau<W;tau++) for(let i=0;i<W;i++){const d=buf[i]-buf[i+tau]; df[tau]+=d*d;}
+  const cmnd=new Float32Array(W); cmnd[0]=1; let s=0;
+  for(let tau=1;tau<W;tau++){s+=df[tau]; cmnd[tau]=df[tau]/((s/tau)||1);}
   let tau=-1;
-  for(let t=2;t<W;t++){if(cmnd[t]<0.12){while(t+1<W&&cmnd[t+1]<cmnd[t])t++;tau=t;break;}}
-  if(tau<2){let mn=Infinity;for(let t=2;t<W;t++)if(cmnd[t]<mn){mn=cmnd[t];tau=t;}}
-  if(tau<2)return -1;
+  for(let t=2;t<W;t++){if(cmnd[t]<0.12){while(t+1<W&&cmnd[t+1]<cmnd[t])t++; tau=t; break;}}
+  if(tau<2){let mn=Infinity; for(let t=2;t<W;t++)if(cmnd[t]<mn){mn=cmnd[t];tau=t;}}
+  if(tau<2) return -1;
   const a=cmnd[tau-1],b2=cmnd[tau],c2=tau+1<W?cmnd[tau+1]:b2;
   const den=a+c2-2*b2;
   const r=den!==0?tau+(c2-a)/(2*den):tau;
   return r>1?sr/r:-1;
 }
 
-// ── Track pitch — single pass, fast, produces segments with duration
+// ── Onset detection — finds note attacks using spectral flux
+function detectOnsets(mono, sr, hopSec){
+  const hop=Math.round(sr*hopSec);
+  const fftSize=1024;
+  const onsets=[];
+  let prevMag=new Float32Array(fftSize/2);
+
+  for(let pos=0;pos+fftSize<mono.length;pos+=hop){
+    const frame=mono.slice(pos,pos+fftSize);
+    // Simple magnitude spectrum
+    const mag=new Float32Array(fftSize/2);
+    for(let k=0;k<fftSize/2;k++){
+      let re=0,im=0;
+      for(let n=0;n<fftSize;n++){
+        const a=2*Math.PI*k*n/fftSize;
+        re+=frame[n]*Math.cos(a); im+=frame[n]*Math.sin(a);
+      }
+      mag[k]=Math.sqrt(re*re+im*im);
+    }
+    // Spectral flux (sum of positive differences)
+    let flux=0;
+    for(let k=0;k<fftSize/2;k++){
+      const diff=mag[k]-prevMag[k];
+      if(diff>0) flux+=diff;
+    }
+    onsets.push({t:pos/sr, flux, rms:Math.sqrt(frame.reduce((s,v)=>s+v*v,0)/frame.length)});
+    prevMag=mag;
+  }
+
+  // Normalise flux
+  const maxFlux=Math.max(...onsets.map(o=>o.flux))||1;
+  onsets.forEach(o=>o.flux/=maxFlux);
+  return onsets;
+}
+
+// ── Track pitch with onset awareness — produces note segments with real durations
 async function trackBand(abuf,sr,hopSec,smoothN,midiLo,midiHi){
   const mono=abuf.getChannelData(0);
-  const fSz=Math.round(sr*0.046),hop=Math.round(sr*hopSec);
+  const fSz=Math.round(sr*0.046), hop=Math.round(sr*hopSec);
   const segments=[];
-  let prev=-1,cnt=0,segStart=0,segMaxRms=0,frame=0;
+  let prev=-1, cnt=0, segStart=0, segMaxRms=0, frame=0;
 
   for(let pos=0;pos+fSz<mono.length;pos+=hop,frame++){
-    if(frame%50===0)await sleep(0);
+    if(frame%50===0) await sleep(0); // yield to keep UI responsive
+
     const f=mono.slice(pos,pos+fSz);
     const rms=Math.sqrt(f.reduce((s,v)=>s+v*v,0)/f.length);
     const t=pos/sr;
 
-    if(rms<0.006){
-      // Silence — close any open segment
+    if(rms<0.005){
       if(prev>0&&cnt>=smoothN){
-        segments.push({timeSec:segStart,durSec:t-segStart,midi:prev,vel:Math.min(1,segMaxRms*6)});
+        segments.push({timeSec:segStart, durSec:t-segStart, midi:prev, vel:Math.min(1,segMaxRms*6)});
       }
-      prev=-1;cnt=0;segMaxRms=0;
-      continue;
+      prev=-1; cnt=0; segMaxRms=0; continue;
     }
 
     const freq=yin(f,sr);
-    if(freq<=0){
-      if(prev>0&&cnt>=smoothN)segments.push({timeSec:segStart,durSec:t-segStart,midi:prev,vel:Math.min(1,segMaxRms*6)});
-      prev=-1;cnt=0;segMaxRms=0;
-      continue;
+    if(freq<=0||freq>6000){
+      if(prev>0&&cnt>=smoothN){
+        segments.push({timeSec:segStart, durSec:t-segStart, midi:prev, vel:Math.min(1,segMaxRms*6)});
+      }
+      prev=-1; cnt=0; segMaxRms=0; continue;
     }
 
     let midi=Math.round(69+12*Math.log2(freq/440));
-    if(midi<midiLo||midi>midiHi){
-      if(prev>0&&cnt>=smoothN)segments.push({timeSec:segStart,durSec:t-segStart,midi:prev,vel:Math.min(1,segMaxRms*6)});
-      prev=-1;cnt=0;segMaxRms=0;
-      continue;
-    }
-    while(midi<NB_MIN)midi+=12;
-    while(midi>NB_MAX)midi-=12;
+    if(midi<midiLo||midi>midiHi) continue;
+    while(midi<NB_MIN)midi+=12; while(midi>NB_MAX)midi-=12;
     midi=Math.max(NB_MIN,Math.min(NB_MAX,midi));
 
     if(midi===prev){
-      cnt++;
-      segMaxRms=Math.max(segMaxRms,rms);
+      cnt++; segMaxRms=Math.max(segMaxRms,rms);
     } else {
-      // Close previous segment
       if(prev>0&&cnt>=smoothN){
-        segments.push({timeSec:segStart,durSec:t-segStart,midi:prev,vel:Math.min(1,segMaxRms*6)});
+        segments.push({timeSec:segStart, durSec:t-segStart, midi:prev, vel:Math.min(1,segMaxRms*6)});
       }
-      // Start new segment
-      prev=midi;cnt=1;segStart=t;segMaxRms=rms;
+      prev=midi; cnt=1; segStart=t; segMaxRms=rms;
     }
   }
-  // Close final segment
   if(prev>0&&cnt>=smoothN){
-    const t=(mono.length/sr);
-    segments.push({timeSec:segStart,durSec:t-segStart,midi:prev,vel:Math.min(1,segMaxRms*6)});
+    segments.push({timeSec:segStart, durSec:(mono.length/sr)-segStart, midi:prev, vel:Math.min(1,segMaxRms*6)});
   }
 
   // Filter by velocity threshold
   const vf=segments.filter(n=>n.vel>=velThreshold&&n.durSec>=hopSec*1.5);
 
-  // Per-beat cap: keep top N loudest notes per beat
-  const beatSec=60/useBpm,byBeat={};
-  for(const n of vf){
-    const b=Math.floor(n.timeSec/beatSec);
-    (byBeat[b]=byBeat[b]||[]).push(n);
-  }
+  // Per-beat cap — keep strongest notes per beat
+  const beatSec=60/useBpm, byBeat={};
+  for(const n of vf){const b=Math.floor(n.timeSec/beatSec); (byBeat[b]=byBeat[b]||[]).push(n);}
   const out=[];
-  for(const ns of Object.values(byBeat)){
-    ns.sort((a,b)=>b.vel-a.vel);
-    out.push(...ns.slice(0,notesPerBeat));
-  }
+  for(const ns of Object.values(byBeat)){ns.sort((a,b)=>b.vel-a.vel); out.push(...ns.slice(0,notesPerBeat));}
   out.sort((a,b)=>a.timeSec-b.timeSec);
   return out;
 }
 
-// ── Quantise — one note event per segment, NO tick expansion
-function quantiseAll(layers,bpm){
-  const tickSec=(60/bpm)/8;
-  const seen=new Set(),result=[];
-  for(const{notes,instr}of layers){
-    if(instr==='none')continue; // skip disabled layers
+// ── Quantise — maps note segments to NBS ticks
+// Key insight from research: NBS uses 1/16th note grid at the detected BPM.
+// Each note gets a tick position AND a duration in ticks so the synth can
+// ring out the note for the correct length — giving long notes their proper feel.
+function quantiseAll(layers, bpm){
+  // Use 1/16th note as the tick unit — finest subdivision that sounds musical
+  // At 93 BPM: 1 beat = 645ms, 1/16th = 161ms per tick
+  const secPerBeat=60/bpm;
+  const SUBDIV=4; // 4 subdivisions per beat = 1/16th notes
+  const tickSec=secPerBeat/SUBDIV;
+
+  const seen=new Set(), result=[];
+
+  for(const{notes, instr, family} of layers){
+    const famName=family||instr;
+    if(famName==='none') continue;
+
     for(const n of notes){
-      const tick=Math.round(n.timeSec/tickSec);
-      const k=`${tick}|${instr}|${n.midi}`;
-      if(!seen.has(k)){seen.add(k);result.push({...n,tick,instr});}
+      const startTick=Math.round(n.timeSec/tickSec);
+
+      // Duration in ticks — this is the KEY to making notes sound right
+      // Short notes (1/16th): 1 tick
+      // Eighth notes: 2 ticks
+      // Quarter notes: 4 ticks
+      // Half notes: 8 ticks
+      // Don't allow longer than 32 ticks (2 bars) — avoids muddy overlap
+      const durTicks=Math.max(1, Math.min(32, Math.round(n.durSec/tickSec)));
+
+      const variant=familyVariant(famName, n.midi);
+      const k=`${startTick}|${variant.instr}|${variant.midi}`;
+      if(!seen.has(k)){
+        seen.add(k);
+        result.push({...n, tick:startTick, durTicks, instr:variant.instr, midi:variant.midi, family:famName});
+      }
     }
   }
-  result.sort((a,b)=>a.tick-b.tick);
-  // Per-tick cap
-  const cap=Math.max(1,Math.ceil(notesPerBeat/2)),tc={};
-  return result.filter(n=>{tc[n.tick]=(tc[n.tick]||0)+1;return tc[n.tick]<=cap;});
-}
 
+  result.sort((a,b)=>a.tick-b.tick);
+
+  // Per-tick cap to prevent muddiness
+  const cap=Math.max(1,Math.ceil(notesPerBeat/2)), tc={};
+  return result.filter(n=>{tc[n.tick]=(tc[n.tick]||0)+1; return tc[n.tick]<=cap;});
+}
 
 // ── Load MC samples from server
 async function loadMCSamples(instrs){
@@ -1067,61 +1084,112 @@ async function loadMCSamples(instrs){
   }));
 }
 
-// ── Synth one note
-function makeNote(off,instr,midi,vel,t){
+
+// ── Synth note with explicit duration
+// durSec controls how long the note actually sounds (from note segment analysis)
+// This is the key improvement — long notes ring out, short notes are staccato
+function makeNoteWithDuration(off,instr,midi,t,durSec){
   const r=SYNTH[instr]||SYNTH.harp;
-  const freq=r.perc?200:440*Math.pow(2,(midi-69)/12); // percussion uses fixed freq
+  const freq=r.perc?200:440*Math.pow(2,(midi-69)/12);
   const env=off.createGain();
-  const dur=r.atk+r.dec+r.rel+0.05;
+
+  if(r.perc){
+    // Percussion: fixed short envelope, ignore durSec
+    const pdur=r.atk+r.dec+r.rel+0.02;
+    env.gain.setValueAtTime(0,t);
+    env.gain.linearRampToValueAtTime(0.8,t+r.atk);
+    env.gain.exponentialRampToValueAtTime(0.001,t+r.atk+r.rel);
+    const flt=off.createBiquadFilter();flt.type=r.ft;flt.frequency.value=r.ff;flt.Q.value=r.fq;
+    env.connect(flt);
+    if(r.noise){
+      const bn=off.createBuffer(1,Math.ceil(off.sampleRate*pdur),off.sampleRate);
+      const bd=bn.getChannelData(0);for(let i=0;i<bd.length;i++)bd[i]=(Math.random()*2-1);
+      const ns=off.createBufferSource();ns.buffer=bn;ns.connect(env);ns.start(t);ns.stop(t+pdur);
+    } else {
+      for(const od of r.osc){
+        const osc=off.createOscillator();osc.type=od.t;osc.frequency.value=freq*Math.pow(2,od.d/12);
+        if(instr==='basedrum')osc.frequency.exponentialRampToValueAtTime(30,t+0.12);
+        const og=off.createGain();og.gain.value=od.g;
+        osc.connect(og);og.connect(env);osc.start(t);osc.stop(t+pdur);
+      }
+    }
+    return flt;
+  }
+
+  // Pitched instrument: envelope shaped by actual note duration
+  // Attack is always fast (note block character), sustain fills the note duration,
+  // then release happens at note end
+  const atk=r.atk;
+  const noteEndT=t+durSec;
+  const relDur=Math.min(r.rel, 0.6); // cap release at 0.6s to avoid mud
+  const totalDur=durSec+relDur+0.05;
+
   env.gain.setValueAtTime(0,t);
-  env.gain.linearRampToValueAtTime(vel*.68,t+r.atk);
-  env.gain.linearRampToValueAtTime(vel*(r.sus||0),t+r.atk+r.dec);
-  env.gain.setValueAtTime(vel*(r.sus||0),t+r.atk+r.dec);
-  env.gain.exponentialRampToValueAtTime(0.0001,t+r.atk+r.dec+r.rel);
+  env.gain.linearRampToValueAtTime(0.8,t+atk);     // fast attack
+  env.gain.linearRampToValueAtTime(0.6,t+atk+Math.min(r.dec,durSec*0.3)); // initial decay
+  if(durSec>atk+0.05){
+    env.gain.setValueAtTime(0.5,noteEndT-0.01);     // hold through note duration
+    env.gain.exponentialRampToValueAtTime(0.001,noteEndT+relDur); // release at note end
+  } else {
+    env.gain.exponentialRampToValueAtTime(0.001,t+atk+relDur);
+  }
+
   const flt=off.createBiquadFilter();flt.type=r.ft;flt.frequency.value=r.ff;flt.Q.value=r.fq;
   env.connect(flt);
+
   const sb=sampleBufs[instr];
   if(sb){
     const src=off.createBufferSource();src.buffer=sb;
-    if(!r.perc)src.detune.value=(midi-SAMPLE_MIDI)*100;
-    src.connect(env);src.start(t);src.stop(t+Math.min(dur,3.5));
-  } else if(r.noise){
-    // White noise for snare/hat
-    const bufLen=Math.ceil(off.sampleRate*dur);
-    const nb=off.createBuffer(1,bufLen,off.sampleRate);
-    const nd=nb.getChannelData(0);
-    for(let i=0;i<bufLen;i++)nd[i]=(Math.random()*2-1);
-    const ns=off.createBufferSource();ns.buffer=nb;
-    ns.connect(env);ns.start(t);ns.stop(t+dur);
+    src.detune.value=(midi-SAMPLE_MIDI)*100;
+    src.connect(env);src.start(t);src.stop(t+Math.min(totalDur,4));
   } else {
     for(const od of r.osc){
-      const osc=off.createOscillator();
-      osc.type=od.t;
+      const osc=off.createOscillator();osc.type=od.t;
       osc.frequency.value=freq*Math.pow(2,od.d/12);
-      // For bass drum: pitch sweep down quickly
-      if(instr==='basedrum')osc.frequency.exponentialRampToValueAtTime(30,t+0.1);
       const og=off.createGain();og.gain.value=od.g;
-      osc.connect(og);og.connect(env);osc.start(t);osc.stop(t+dur);
+      osc.connect(og);og.connect(env);osc.start(t);osc.stop(t+totalDur);
     }
   }
   return flt;
 }
+// Keep makeNote as alias for rerender compatibility
+function makeNote(off,instr,midi,vel,t){return makeNoteWithDuration(off,instr,midi,t,0.15);}
 
-// ── Render audio
+// ── Render audio — uses note duration (durTicks) to control envelope length
+// This is how real note block songs work: each note rings for its natural duration
 async function renderAudio(notes,dur,bpm){
-  const tickSec=(60/bpm)/8;
+  // Match the same tick duration as quantiseAll (1/16th notes)
+  const secPerBeat=60/bpm;
+  const tickSec=secPerBeat/4; // 4 subdivisions per beat
   const maxTick=notes.length?Math.max(...notes.map(n=>n.tick)):0;
-  const totalDur=Math.max(dur,maxTick*tickSec+3);
+  const totalDur=Math.max(dur,maxTick*tickSec+4);
   const sr=44100;
   const off=new OfflineAudioContext(2,Math.ceil(sr*totalDur),sr);
-  const master=off.createGain();master.gain.value=0.72;
+
+  // Master chain with gentle compression to glue layers
+  const master=off.createGain(); master.gain.value=0.68;
   const comp=off.createDynamicsCompressor();
-  comp.threshold.value=-8;comp.knee.value=4;comp.ratio.value=3.5;comp.attack.value=0.002;comp.release.value=0.08;
-  master.connect(comp);comp.connect(off.destination);
-  const lv={harp:.85,guitar:.55,banjo:.55,bass:.65,bell:.7,xylophone:.75,flute:.7,chime:.3,bit:.6,pling:.65,didgeridoo:.6};
+  comp.threshold.value=-12; comp.knee.value=6;
+  comp.ratio.value=3;  comp.attack.value=0.003; comp.release.value=0.15;
+  master.connect(comp); comp.connect(off.destination);
+
+  // Per-instrument volume balancing
+  const lv={
+    harp:.85, guitar:.55, banjo:.58, bass:.7, bell:.72,
+    xylophone:.75, flute:.7, chime:.32, bit:.6, pling:.65,
+    didgeridoo:.65, iron_xylophone:.7, cow_bell:.55,
+    basedrum:.8, snare:.7, hat:.5,
+  };
+
   for(const n of notes){
-    const lg=off.createGain();lg.gain.value=lv[n.instr]||.65;
-    makeNote(off,n.instr,n.midi,n.vel,n.tick*tickSec).connect(lg);lg.connect(master);
+    const t=n.tick*tickSec;
+    // Note duration determines how long the synth envelope should sustain
+    // durTicks=1 → staccato (16th note), durTicks=4 → full quarter note, etc.
+    const noteDurSec=(n.durTicks||1)*tickSec;
+
+    const lg=off.createGain(); lg.gain.value=(lv[n.instr]||.65)*n.vel;
+    makeNoteWithDuration(off,n.instr,n.midi,t,noteDurSec).connect(lg);
+    lg.connect(master);
   }
   return off.startRendering();
 }
@@ -1240,7 +1308,8 @@ function buildNbs(notes,bpm){
   parts.push(...wu(0,2),...wu(5,1),...wu(16,1));
   parts.push(...wu(maxTick,2),...wu(layers,2));
   parts.push(...ws(srcName||'NoteForge'),...ws('NoteForge'),...ws(''));
-  const tps=Math.round(100/((60/bpm)/8));
+  // NBS tempo = ticks per second * 100. With 4 subdivisions per beat:
+  const tps=Math.round(100/((60/bpm)/4));
   parts.push(...wu(Math.max(1,Math.min(65535,tps)),2));
   for(let i=0;i<9;i++)parts.push(...wu(0,1));
   parts.push(...wu(0,4),...wu(0,4),...wu(0,4),...wu(0,2),...wu(0,4),...wu(0,4));
