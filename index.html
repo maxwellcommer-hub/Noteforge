@@ -814,6 +814,35 @@ function yin(buf,sr){
   return r>1?sr/r:-1;
 }
 
+// ── Basic Pitch ML transcription via server
+async function tryBasicPitch(audioBuf){
+  // Convert AudioBuffer to WAV blob and POST to /transcribe
+  const wav=toWavBlobFromBuf(audioBuf);
+  const form=new FormData();
+  form.append('file',wav,'audio.wav');
+  const res=await fetch('/transcribe',{method:'POST',body:form});
+  if(!res.ok){const d=await res.json();throw new Error(d.error||'Server error');}
+  const data=await res.json();
+  return data.notes; // [{timeSec, durSec, midi, vel}]
+}
+
+function toWavBlobFromBuf(buf){
+  // Export as mono 22050Hz WAV to keep upload size small
+  const sr=22050,len=buf.length;
+  const mono=new Float32Array(len);
+  for(let c=0;c<buf.numberOfChannels;c++){const ch=buf.getChannelData(c);for(let i=0;i<len;i++)mono[i]+=ch[i]/buf.numberOfChannels;}
+  const pcm=new Int16Array(len);
+  for(let i=0;i<len;i++)pcm[i]=Math.max(-32768,Math.min(32767,Math.round(mono[i]*32767)));
+  const ab=new ArrayBuffer(44+pcm.byteLength),dv=new DataView(ab);
+  const W=(o,v)=>dv.setUint32(o,v,true),S=(o,v)=>dv.setUint16(o,v,true);
+  [82,73,70,70].forEach((v,i)=>dv.setUint8(i,v));W(4,36+pcm.byteLength);
+  [87,65,86,69,102,109,116,32].forEach((v,i)=>dv.setUint8(8+i,v));
+  W(16,16);S(20,1);S(22,1);W(24,sr);W(28,sr*2);S(32,2);S(34,16);
+  [100,97,116,97].forEach((v,i)=>dv.setUint8(36+i,v));W(40,pcm.byteLength);
+  new Int16Array(ab,44).set(pcm);
+  return new Blob([ab],{type:'audio/wav'});
+}
+
 // ── Track pitch — single pass, fast, produces segments with duration
 async function trackBand(abuf,sr,hopSec,smoothN,midiLo,midiHi){
   const mono=abuf.getChannelData(0);
@@ -1015,22 +1044,45 @@ async function doConvert(){
   try{
     await stg('s1',8,'Decoding audio');await sleep(80);
     await stg('s2',16,'BPM: '+Math.round(bpm));await sleep(60);
-    await stg('s3',26,'Separating frequency bands');
-    const mono=getMono(srcBuf),sr=srcBuf.sampleRate;
-    const hiB=toAB(hpf(mono,sr,650),sr);
-    const miB=toAB(bpf(mono,sr,160,650),sr);
-    const loB=toAB(lpf(mono,sr,200),sr);
-    await sleep(40);
-    await stg('s4',36,'Pitch tracking melody...');
-    const{melody,harmony,bass}=pickInstrs(srcBuf);
-    const hiN=await trackBand(hiB,sr,qp.hop,qp.sn,52,82);
-    await stg('s5',52,'Pitch tracking harmony & bass...');
-    const miN=noteDensity==='minimal'?[]:await trackBand(miB,sr,qp.hop*1.5,qp.sn,45,66);
-    const loN=noteDensity==='minimal'?[]:await trackBand(loB,sr,qp.hop*2.5,qp.sn,28,52);
-    await stg('s6',62,'Filtering & quantising notes');
-    hiN.forEach(n=>n.instr=melody);miN.forEach(n=>n.instr=harmony);loN.forEach(n=>n.instr=bass);
-    const shimmer=quality==='best'?hiN.filter((_,i)=>i%5===0).map(n=>({...n,instr:'chime',vel:n.vel*.2,midi:Math.min(NB_MAX,n.midi+12)})):[];
-    allNotes=quantiseAll([{notes:hiN,instr:melody},{notes:miN,instr:harmony},{notes:loN,instr:bass},...(shimmer.length?[{notes:shimmer,instr:'chime'}]:[])],bpm);
+
+    // Try Basic Pitch ML transcription first (much better quality)
+    let usedML=false;
+    try{
+      await stg('s3',22,'Uploading to ML pitch detector (Basic Pitch)...');
+      const mlNotes=await tryBasicPitch(srcBuf);
+      if(mlNotes&&mlNotes.length>10){
+        await stg('s4',44,'ML transcription complete — '+mlNotes.length+' notes');
+        await stg('s5',52,'Assigning instruments...');
+        const{melody,harmony,bass}=pickInstrs(srcBuf);
+        // Split ML notes into layers by pitch range
+        const hiN=mlNotes.filter(n=>n.midi>=52).map(n=>({...n,instr:melody}));
+        const miN=noteDensity!=='minimal'?mlNotes.filter(n=>n.midi>=45&&n.midi<52).map(n=>({...n,instr:harmony})):[];
+        const loN=noteDensity!=='minimal'?mlNotes.filter(n=>n.midi<45).map(n=>({...n,instr:bass})):[];
+        await stg('s6',62,'Filtering & quantising notes');
+        allNotes=quantiseAll([{notes:hiN,instr:melody},{notes:miN,instr:harmony},{notes:loN,instr:bass}],bpm);
+        usedML=true;
+      }
+    }catch(e){console.warn('Basic Pitch failed, falling back to browser YIN:',e.message);}
+
+    if(!usedML){
+      // Fallback: browser-side YIN pitch detection
+      await stg('s3',26,'Separating frequency bands');
+      const mono=getMono(srcBuf),sr=srcBuf.sampleRate;
+      const hiB=toAB(hpf(mono,sr,650),sr);
+      const miB=toAB(bpf(mono,sr,160,650),sr);
+      const loB=toAB(lpf(mono,sr,200),sr);
+      await sleep(40);
+      await stg('s4',36,'Pitch tracking melody (YIN)...');
+      const{melody,harmony,bass}=pickInstrs(srcBuf);
+      const hiN=await trackBand(hiB,sr,qp.hop,qp.sn,52,82);
+      await stg('s5',52,'Pitch tracking harmony & bass...');
+      const miN=noteDensity==='minimal'?[]:await trackBand(miB,sr,qp.hop*1.5,qp.sn,45,66);
+      const loN=noteDensity==='minimal'?[]:await trackBand(loB,sr,qp.hop*2.5,qp.sn,28,52);
+      await stg('s6',62,'Filtering & quantising notes');
+      hiN.forEach(n=>n.instr=melody);miN.forEach(n=>n.instr=harmony);loN.forEach(n=>n.instr=bass);
+      const shimmer=quality==='best'?hiN.filter((_,i)=>i%5===0).map(n=>({...n,instr:'chime',vel:n.vel*.2,midi:Math.min(NB_MAX,n.midi+12)})):[];
+      allNotes=quantiseAll([{notes:hiN,instr:melody},{notes:miN,instr:harmony},{notes:loN,instr:bass},...(shimmer.length?[{notes:shimmer,instr:'chime'}]:[])],bpm);
+    }
     await sleep(40);
     await stg('s7',68,'Loading Minecraft sounds');
     await loadMCSamples([...new Set(allNotes.map(n=>n.instr))]);

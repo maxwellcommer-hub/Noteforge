@@ -192,3 +192,51 @@ def health():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port)
+
+# ── Basic Pitch ML transcription endpoint
+# Runs Spotify's Basic Pitch model server-side for accurate note detection
+@app.route('/transcribe', methods=['POST'])
+def transcribe():
+    import tempfile, shutil
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+
+    f = request.files['file']
+    tmp_dir = tempfile.mkdtemp()
+    mp3_path = os.path.join(tmp_dir, 'input.mp3')
+    wav_path = os.path.join(tmp_dir, 'input.wav')
+
+    try:
+        f.save(mp3_path)
+
+        # Convert to WAV for Basic Pitch
+        subprocess.run(
+            ['ffmpeg', '-i', mp3_path, '-ar', '22050', '-ac', '1', '-y', wav_path],
+            capture_output=True, timeout=30
+        )
+
+        # Run Basic Pitch
+        from basic_pitch.inference import predict
+        from basic_pitch import ICASSP_2022_MODEL_PATH
+
+        model_output, midi_data, note_events = predict(wav_path)
+
+        # Convert note events to our format
+        # note_events: list of (start_time, end_time, pitch_midi, amplitude, pitch_bends)
+        notes = []
+        for start, end, pitch, amp, _ in note_events:
+            notes.append({
+                'timeSec': float(start),
+                'durSec': float(end - start),
+                'midi': int(pitch),
+                'vel': float(min(1.0, amp))
+            })
+
+        return jsonify({'notes': notes, 'count': len(notes)})
+
+    except ImportError:
+        return jsonify({'error': 'basic-pitch not installed'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
