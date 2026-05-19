@@ -226,6 +226,14 @@ body::before{
 .ic.m{border-color:var(--green);color:var(--green);background:rgba(85,255,85,0.06)}
 .ic.h{border-color:var(--aqua);color:var(--aqua);background:rgba(85,255,255,0.06)}
 .ic.b{border-color:var(--gold);color:var(--gold);background:rgba(255,170,0,0.06)}
+.mc-select{
+  flex:1;background:var(--dp);
+  border-top:2px solid #1a1a30;border-left:2px solid #1a1a30;
+  border-bottom:2px solid #3a3a5a;border-right:2px solid #3a3a5a;
+  color:var(--white);font-family:'VT323',monospace;font-size:16px;
+  padding:6px 8px;outline:none;cursor:pointer;
+}
+.mc-select:focus{border-color:var(--green)}
 
 /* ── Pixel buttons (selectable) ── */
 .qr{display:flex;gap:5px}
@@ -453,7 +461,47 @@ canvas{display:block;width:100%}
 
   <div id="instrWrap" style="display:none">
     <div class="il">INSTRUMENT LAYERS:</div>
-    <div class="ics" id="ics"></div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:13px;color:var(--green);min-width:64px">♪ MELODY</span>
+        <select id="instrMelody" class="mc-select">
+          <option value="harp">Harp</option>
+          <option value="bell">Bell</option>
+          <option value="xylophone">Xylophone</option>
+          <option value="flute">Flute</option>
+          <option value="chime">Chime</option>
+          <option value="bit">Bit (8-bit)</option>
+          <option value="pling">Pling</option>
+          <option value="banjo">Banjo</option>
+          <option value="guitar">Guitar</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:13px;color:var(--aqua);min-width:64px">♫ HARMONY</span>
+        <select id="instrHarmony" class="mc-select">
+          <option value="guitar">Guitar</option>
+          <option value="banjo">Banjo</option>
+          <option value="harp">Harp</option>
+          <option value="flute">Flute</option>
+          <option value="bit">Bit (8-bit)</option>
+          <option value="pling">Pling</option>
+          <option value="xylophone">Xylophone</option>
+          <option value="chime">Chime</option>
+          <option value="none">— None —</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:13px;color:var(--gold);min-width:64px">♩ BASS</span>
+        <select id="instrBass" class="mc-select">
+          <option value="bass">Bass</option>
+          <option value="didgeridoo">Didgeridoo</option>
+          <option value="harp">Harp</option>
+          <option value="guitar">Guitar</option>
+          <option value="bit">Bit (8-bit)</option>
+          <option value="none">— None —</option>
+        </select>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -526,6 +574,13 @@ canvas{display:block;width:100%}
     </div>
     <div class="vr">🔊<input type="range" id="vol" min="0" max="100" value="85" oninput="setVol(this.value)"></div>
   </div>
+  <button onclick="rerender()" style="width:100%;margin-bottom:8px;padding:9px;
+    background:var(--dp);border-top:2px solid #3a3a5a;border-left:2px solid #3a3a5a;
+    border-bottom:2px solid #1a1a30;border-right:2px solid #1a1a30;
+    font-family:'Press Start 2P',monospace;font-size:8px;color:var(--gold);
+    cursor:pointer;letter-spacing:.5px;" id="btnRerender">
+    🔄 CHANGE INSTRUMENTS &amp; RE-RENDER
+  </button>
   <div class="dlr">
     <button class="bd bmp3" onclick="dlMp3()">⬇ DOWNLOAD MP3</button>
     <button class="bd bnbs" onclick="dlNbs()">⬇ DOWNLOAD .NBS</button>
@@ -785,10 +840,23 @@ function pickInstrs(buf){
 }
 function previewInstrs(buf){
   const{melody,harmony,bass}=pickInstrs(buf);
-  const c=$('ics');c.innerHTML='';
-  [{t:'♪ '+melody,cls:'m'},{t:'♫ '+harmony,cls:'h'},{t:'♩ '+bass,cls:'b'}].forEach(({t,cls})=>{
-    const d=document.createElement('div');d.className='ic '+cls;d.textContent=t;c.appendChild(d);
-  });
+  // Set dropdown defaults based on detected spectrum
+  const m=$('instrMelody'),h=$('instrHarmony'),b=$('instrBass');
+  if(m)setSelectVal(m,melody);
+  if(h)setSelectVal(h,harmony);
+  if(b)setSelectVal(b,bass);
+}
+function setSelectVal(sel,val){
+  for(let i=0;i<sel.options.length;i++){
+    if(sel.options[i].value===val){sel.selectedIndex=i;return;}
+  }
+}
+function getInstrs(){
+  return{
+    melody:$('instrMelody')?.value||'harp',
+    harmony:$('instrHarmony')?.value||'guitar',
+    bass:$('instrBass')?.value||'bass',
+  };
 }
 
 // ── Filters
@@ -919,11 +987,11 @@ async function trackBand(abuf,sr,hopSec,smoothN,midiLo,midiHi){
 }
 
 // ── Quantise — one note event per segment, NO tick expansion
-// Sustain is handled by the synth envelope length, not by repeating notes
 function quantiseAll(layers,bpm){
   const tickSec=(60/bpm)/8;
   const seen=new Set(),result=[];
   for(const{notes,instr}of layers){
+    if(instr==='none')continue; // skip disabled layers
     for(const n of notes){
       const tick=Math.round(n.timeSec/tickSec);
       const k=`${tick}|${instr}|${n.midi}`;
@@ -1053,7 +1121,7 @@ async function doConvert(){
       if(mlNotes&&mlNotes.length>10){
         await stg('s4',44,'ML transcription complete — '+mlNotes.length+' notes');
         await stg('s5',52,'Assigning instruments...');
-        const{melody,harmony,bass}=pickInstrs(srcBuf);
+        const{melody,harmony,bass}=getInstrs();
         // Split ML notes into layers by pitch range
         const hiN=mlNotes.filter(n=>n.midi>=52).map(n=>({...n,instr:melody}));
         const miN=noteDensity!=='minimal'?mlNotes.filter(n=>n.midi>=45&&n.midi<52).map(n=>({...n,instr:harmony})):[];
@@ -1073,7 +1141,7 @@ async function doConvert(){
       const loB=toAB(lpf(mono,sr,200),sr);
       await sleep(40);
       await stg('s4',36,'Pitch tracking melody (YIN)...');
-      const{melody,harmony,bass}=pickInstrs(srcBuf);
+      const{melody,harmony,bass}=getInstrs();
       const hiN=await trackBand(hiB,sr,qp.hop,qp.sn,52,82);
       await stg('s5',52,'Pitch tracking harmony & bass...');
       const miN=noteDensity==='minimal'?[]:await trackBand(miB,sr,qp.hop*1.5,qp.sn,45,66);
@@ -1228,6 +1296,44 @@ function drawRoll(){
 }
 
 // ── Downloads
+async function rerender(){
+  if(!allNotes.length){showErr('No notes to re-render — convert a song first.');return;}
+  const btn=$('btnRerender');
+  btn.textContent='⏳ RE-RENDERING...';btn.style.color='var(--aqua)';
+  try{
+    // Reassign instruments based on current dropdown values
+    const{melody,harmony,bass}=getInstrs();
+    const instrs=[...new Set(allNotes.map(n=>n.instr))];
+    // Remap: first instr = melody, second = harmony, third = bass
+    // Actually remap by pitch range
+    allNotes.forEach(n=>{
+      if(n.midi>=52)n.instr=melody==='none'?'harp':melody;
+      else if(n.midi>=45)n.instr=harmony==='none'?'harp':harmony;
+      else n.instr=bass==='none'?'bass':bass;
+    });
+    // Filter out notes whose layer is set to none
+    const m=$('instrMelody')?.value,h=$('instrHarmony')?.value,b=$('instrBass')?.value;
+    const filtered=allNotes.filter(n=>{
+      if(n.midi>=52&&m==='none')return false;
+      if(n.midi>=45&&n.midi<52&&h==='none')return false;
+      if(n.midi<45&&b==='none')return false;
+      return true;
+    });
+    await loadMCSamples([...new Set(filtered.map(n=>n.instr))]);
+    rendBuf=await renderAudio(filtered,rendBuf.duration,useBpm);
+    await ensureLame();
+    mp3Blob=encodeMP3(rendBuf);
+    nbsBlob=buildNbs(filtered,useBpm);
+    const instrsNow=[...new Set(filtered.map(n=>n.instr))];
+    $('rBadge').textContent=instrsNow.join(' + ');
+    drawWave();drawRoll();
+    btn.textContent='✓ RE-RENDERED!';btn.style.color='var(--green)';
+    setTimeout(()=>{btn.textContent='🔄 CHANGE INSTRUMENTS & RE-RENDER';btn.style.color='var(--gold)';},2000);
+  }catch(e){
+    showErr('Re-render failed: '+e.message);
+    btn.textContent='🔄 CHANGE INSTRUMENTS & RE-RENDER';btn.style.color='var(--gold)';
+  }
+}
 function dlMp3(){if(!mp3Blob)return;const a=document.createElement('a');a.href=URL.createObjectURL(mp3Blob);a.download=(srcName||'song')+'-noteblocks.mp3';a.click();}
 function dlNbs(){if(!nbsBlob)return;const a=document.createElement('a');a.href=URL.createObjectURL(nbsBlob);a.download=(srcName||'song')+'.nbs';a.click();}
 </script>
