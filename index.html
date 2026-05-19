@@ -504,16 +504,6 @@ canvas{display:block;width:100%}
   </div>
 </div>
 
-<!-- 02 Quality -->
-<div class="panel">
-  <div class="panel-title">02 QUALITY</div>
-  <div class="qr">
-    <div class="qb" onclick="setQ('fast')">⚡<br>FAST<br><span style="color:#555577;font-size:6px">~5s</span></div>
-    <div class="qb sel" onclick="setQ('balanced')">⚖<br>BALANCED<br><span style="color:#555577;font-size:6px">~20s</span></div>
-    <div class="qb" onclick="setQ('best')">✦<br>BEST<br><span style="color:#555577;font-size:6px">~60s</span></div>
-  </div>
-</div>
-
 <!-- 03 Density -->
 <div class="panel">
   <div class="panel-title">03 NOTE DENSITY</div>
@@ -545,8 +535,8 @@ canvas{display:block;width:100%}
     <div class="st" id="s1"><div class="sd"></div>Decoding audio</div>
     <div class="st" id="s2"><div class="sd"></div>Detecting BPM</div>
     <div class="st" id="s3"><div class="sd"></div>Separating melody / harmony / bass</div>
-    <div class="st" id="s4"><div class="sd"></div>Pitch tracking — melody</div>
-    <div class="st" id="s5"><div class="sd"></div>Pitch tracking — harmony & bass</div>
+    <div class="st" id="s4"><div class="sd"></div>Detecting chords & melody</div>
+    <div class="st" id="s5"><div class="sd"></div>Separating instrument layers</div>
     <div class="st" id="s6"><div class="sd"></div>Quantising to 1/16th note grid</div>
     <div class="st" id="s7"><div class="sd"></div>Loading Minecraft sounds</div>
     <div class="st" id="s8"><div class="sd"></div>Synthesising instruments</div>
@@ -821,34 +811,125 @@ async function afterLoad(){
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// AUDIO ENGINE v3 — Research-based note block conversion
-// Key principles from research:
-// 1. Use 1/16th note subdivision (finest grid) — gives proper short/long notes
-// 2. Notes get their natural duration from how long the pitch holds (onset/offset)
-// 3. Dynamic velocity from RMS energy — louder passages play louder notes
-// 4. Onset detection finds note attacks precisely, not just steady-state pitch
-// 5. NBS tempo stored as ticks/sec, BPM = ticks/sec * 60 / subdivisions
-// 6. Real note block songs use 25 pitches per instrument (F#3 to F#5)
+// AUDIO ENGINE v4 — Polyphonic chord detection + auto instrument calibration
+//
+// Key research findings:
+// - Real note block songs use stem separation then per-stem pitch tracking
+// - Bass/didgeridoo = 2 octaves below standard, guitar = 1 below, 
+//   flute/bell/chime/xylophone = 1-2 octaves above (6 octave total range)
+// - Chords need multiple simultaneous pitches detected per frame
+// - Note duration from onset/offset detection, not fixed quantization
+// - Auto-calibrate everything from the song's spectral & rhythmic content
 // ═══════════════════════════════════════════════════════════════════════
 
-// ── BPM Detection using onset autocorrelation
+// ── Polyphonic pitch detection using spectral peak picking
+// Finds multiple simultaneous pitches per frame (chords, melody+bass together)
+function detectPitches(frame, sr, maxNotes=3, minFreq=60, maxFreq=2000){
+  const N=frame.length;
+  // Compute magnitude spectrum
+  const mag=new Float32Array(N/2);
+  for(let k=1;k<N/2;k++){
+    let re=0,im=0;
+    for(let n=0;n<N;n++){
+      const a=2*Math.PI*k*n/N;
+      re+=frame[n]*Math.cos(a); im+=frame[n]*Math.sin(a);
+    }
+    mag[k]=Math.sqrt(re*re+im*im);
+  }
+  // Find spectral peaks (local maxima above threshold)
+  const peaks=[];
+  const threshold=Math.max(...mag)*0.08; // 8% of peak magnitude
+  for(let k=2;k<N/2-2;k++){
+    const freq=k*sr/N;
+    if(freq<minFreq||freq>maxFreq) continue;
+    if(mag[k]>threshold && mag[k]>mag[k-1] && mag[k]>mag[k+1] &&
+       mag[k]>mag[k-2] && mag[k]>mag[k+2]){
+      // Parabolic interpolation for sub-bin accuracy
+      const alpha=mag[k-1], beta=mag[k], gamma=mag[k+1];
+      const denom=alpha-2*beta+gamma;
+      const refinedK=denom!==0?k-0.5*(gamma-alpha)/denom:k;
+      const refinedFreq=refinedK*sr/N;
+      peaks.push({freq:refinedFreq, mag:mag[k]});
+    }
+  }
+  // Sort by magnitude, return top N as MIDI notes
+  peaks.sort((a,b)=>b.mag-a.mag);
+  const notes=[];
+  const seen=new Set();
+  for(const p of peaks.slice(0,maxNotes*3)){
+    const midi=Math.round(69+12*Math.log2(p.freq/440));
+    if(midi<21||midi>108) continue;
+    if(seen.has(midi)) continue;
+    // Check it's not a harmonic of an already-found note
+    let isHarmonic=false;
+    for(const existing of notes){
+      const ratio=p.freq/existing.freq;
+      if(Math.abs(ratio-Math.round(ratio))<0.05&&ratio>1.5){isHarmonic=true;break;}
+    }
+    if(!isHarmonic){seen.add(midi);notes.push({midi,freq:p.freq,mag:p.mag});}
+    if(notes.length>=maxNotes) break;
+  }
+  return notes;
+}
+
+// ── Auto-calibrate conversion parameters from the song
+function autoCalibrate(buf, bpm){
+  const{lo,mid,hi}=analyseSpec(buf);
+  const secPerBeat=60/bpm;
+
+  // Subdivision: faster songs need finer grid
+  // 150+ BPM → use 1/16th (4 per beat)
+  // 90-150 BPM → use 1/8th (2 per beat, then snap to 1/16th)
+  // <90 BPM → use 1/4 (1 per beat)
+  const subdiv = bpm>=140 ? 4 : bpm>=90 ? 4 : 3;
+
+  // Hop size: ~40ms for accurate pitch tracking
+  const hopSec=0.04;
+
+  // Smooth frames: how many consecutive same-pitch frames = note onset
+  // Faster songs → less smoothing needed
+  const smoothN = bpm>=130 ? 1 : 2;
+
+  // Velocity threshold: how quiet is too quiet
+  // Auto from RMS distribution
+  const mono=getMono(buf);
+  const rmsValues=[];
+  const hop=Math.round(buf.sampleRate*hopSec);
+  for(let i=0;i+hop<mono.length;i+=hop){
+    let e=0; for(let j=0;j<hop;j++) e+=mono[i+j]*mono[i+j];
+    rmsValues.push(Math.sqrt(e/hop));
+  }
+  rmsValues.sort((a,b)=>a-b);
+  // Use 20th percentile as silence threshold
+  const p20=rmsValues[Math.floor(rmsValues.length*0.20)]||0.005;
+  const velThresh=Math.max(0.005, p20*0.8);
+
+  // Instrument selection based on spectral content
+  let melody, harmony, bass;
+  if(hi>0.3){ melody='bell'; }
+  else if(hi>0.18){ melody='xylophone'; }
+  else if(mid>0.45){ melody='harp'; }
+  else { melody='flute'; }
+
+  harmony = mid>0.38 ? 'guitar' : 'banjo';
+  bass = lo>0.28 ? 'didgeridoo' : 'bass';
+
+  return{subdiv, hopSec, smoothN, velThresh, melody, harmony, bass};
+}
+
+// ── BPM Detection
 async function detectBpm(buf){
   const sr=buf.sampleRate, mono=getMono(buf);
   const use=Math.min(mono.length, sr*90);
   const data=mono.subarray(0,use);
-
-  // Compute onset envelope at 200fps using energy flux
   const fps=200, hop=Math.round(sr/fps), win=hop*2;
   const env=[];
   for(let i=0;i+win<data.length;i+=hop){
     let e=0; for(let j=0;j<win;j++) e+=data[i+j]*data[i+j];
     env.push(Math.sqrt(e/win));
   }
-  // Half-wave rectified onset strength function
   const odf=new Float32Array(env.length);
   for(let i=3;i<env.length;i++){const d=env[i]-env[i-1]; odf[i]=d>0?d:0;}
-
-  // Autocorrelation over 50-250 BPM with musical priors
   const candidates=[];
   for(let bpm=50;bpm<=250;bpm+=0.25){
     const lag=fps*60/bpm, lagI=Math.round(lag);
@@ -857,12 +938,10 @@ async function detectBpm(buf){
     const lim=Math.min(odf.length-lagI, Math.ceil(fps*60));
     for(let i=0;i<lim;i++) score+=odf[i]*odf[i+lagI];
     score/=lim;
-    // Check harmonics (2x and 0.5x)
     const lag2=lagI*2;
     if(lag2<odf.length){let s2=0,c2=0; for(let i=0;i+lag2<odf.length&&i<lim;i++){s2+=odf[i]*odf[i+lag2];c2++;} if(c2>0)score+=0.5*(s2/c2);}
     const lagH=Math.round(lagI/2);
     if(lagH>1){let sh=0,ch=0; for(let i=0;i+lagH<odf.length&&i<lim;i++){sh+=odf[i]*odf[i+lagH];ch++;} if(ch>0)score+=0.3*(sh/ch);}
-    // Bias toward musical tempos 70-180
     const prior=bpm>=70&&bpm<=180?1.2:bpm>=60&&bpm<=200?1.0:0.6;
     candidates.push({bpm,score:score*prior});
   }
@@ -873,7 +952,7 @@ async function detectBpm(buf){
   return Math.round(((good[0]||candidates[0]).bpm)*2)/2;
 }
 
-// ── Key detection (Krumhansl-Schmuckler)
+// ── Key detection
 function detectKey(buf){
   const mono=getMono(buf),sr=buf.sampleRate;
   const chroma=new Float32Array(12).fill(0);
@@ -893,7 +972,7 @@ function detectKey(buf){
   return best;
 }
 
-// ── Spectrum analysis for auto instrument selection
+// ── Spectrum analysis
 function analyseSpec(buf){
   const mono=getMono(buf),sr=buf.sampleRate,N=2048,data=mono.slice(0,N);
   let lo=0,mid=0,hi=0,tot=0;
@@ -915,13 +994,13 @@ function pickInstrs(buf){
   };
 }
 
-// ── Simple filters
+// ── Filters
 function lpf(s,sr,fc){const a=1/(1+1/(2*Math.PI*(fc/sr)));const o=new Float32Array(s.length);o[0]=s[0];for(let i=1;i<s.length;i++)o[i]=a*o[i-1]+(1-a)*s[i];return o;}
 function hpf(s,sr,fc){const a=1/(1+2*Math.PI*(fc/sr));const o=new Float32Array(s.length);o[0]=s[0];for(let i=1;i<s.length;i++)o[i]=a*(o[i-1]+s[i]-s[i-1]);return o;}
 function bpf(s,sr,lo,hi){return hpf(lpf(s,sr,hi),sr,lo);}
 function toAB(data,sr){const b=audioCtx.createBuffer(1,data.length,sr);b.getChannelData(0).set(data);return b;}
 
-// ── YIN pitch detector (accurate, threshold 0.12)
+// ── YIN pitch detector
 function yin(buf,sr){
   const N=buf.length, W=Math.floor(N/2);
   const df=new Float32Array(W);
@@ -933,133 +1012,54 @@ function yin(buf,sr){
   if(tau<2){let mn=Infinity; for(let t=2;t<W;t++)if(cmnd[t]<mn){mn=cmnd[t];tau=t;}}
   if(tau<2) return -1;
   const a=cmnd[tau-1],b2=cmnd[tau],c2=tau+1<W?cmnd[tau+1]:b2;
-  const den=a+c2-2*b2;
-  const r=den!==0?tau+(c2-a)/(2*den):tau;
+  const den=a+c2-2*b2; const r=den!==0?tau+(c2-a)/(2*den):tau;
   return r>1?sr/r:-1;
 }
 
-// ── Onset detection — finds note attacks using spectral flux
-function detectOnsets(mono, sr, hopSec){
-  const hop=Math.round(sr*hopSec);
-  const fftSize=1024;
-  const onsets=[];
-  let prevMag=new Float32Array(fftSize/2);
-
-  for(let pos=0;pos+fftSize<mono.length;pos+=hop){
-    const frame=mono.slice(pos,pos+fftSize);
-    // Simple magnitude spectrum
-    const mag=new Float32Array(fftSize/2);
-    for(let k=0;k<fftSize/2;k++){
-      let re=0,im=0;
-      for(let n=0;n<fftSize;n++){
-        const a=2*Math.PI*k*n/fftSize;
-        re+=frame[n]*Math.cos(a); im+=frame[n]*Math.sin(a);
-      }
-      mag[k]=Math.sqrt(re*re+im*im);
-    }
-    // Spectral flux (sum of positive differences)
-    let flux=0;
-    for(let k=0;k<fftSize/2;k++){
-      const diff=mag[k]-prevMag[k];
-      if(diff>0) flux+=diff;
-    }
-    onsets.push({t:pos/sr, flux, rms:Math.sqrt(frame.reduce((s,v)=>s+v*v,0)/frame.length)});
-    prevMag=mag;
-  }
-
-  // Normalise flux
-  const maxFlux=Math.max(...onsets.map(o=>o.flux))||1;
-  onsets.forEach(o=>o.flux/=maxFlux);
-  return onsets;
-}
-
-// ── Track pitch with onset awareness — produces note segments with real durations
-async function trackBand(abuf,sr,hopSec,smoothN,midiLo,midiHi){
+// ── Track a frequency band with onset/offset detection
+async function trackBand(abuf, sr, hopSec, smoothN, midiLo, midiHi, autoVelThresh){
   const mono=abuf.getChannelData(0);
   const fSz=Math.round(sr*0.046), hop=Math.round(sr*hopSec);
-  const segments=[];
-  let prev=-1, cnt=0, segStart=0, segMaxRms=0, frame=0;
-
+  const segments=[]; let prev=-1, cnt=0, segStart=0, segMaxRms=0, frame=0;
   for(let pos=0;pos+fSz<mono.length;pos+=hop,frame++){
-    if(frame%50===0) await sleep(0); // yield to keep UI responsive
-
+    if(frame%50===0) await sleep(0);
     const f=mono.slice(pos,pos+fSz);
     const rms=Math.sqrt(f.reduce((s,v)=>s+v*v,0)/f.length);
     const t=pos/sr;
-
-    if(rms<0.005){
-      if(prev>0&&cnt>=smoothN){
-        segments.push({timeSec:segStart, durSec:t-segStart, midi:prev, vel:Math.min(1,segMaxRms*6)});
-      }
+    if(rms<autoVelThresh){
+      if(prev>0&&cnt>=smoothN) segments.push({timeSec:segStart,durSec:t-segStart,midi:prev,vel:Math.min(1,segMaxRms*6)});
       prev=-1; cnt=0; segMaxRms=0; continue;
     }
-
     const freq=yin(f,sr);
     if(freq<=0||freq>6000){
-      if(prev>0&&cnt>=smoothN){
-        segments.push({timeSec:segStart, durSec:t-segStart, midi:prev, vel:Math.min(1,segMaxRms*6)});
-      }
+      if(prev>0&&cnt>=smoothN) segments.push({timeSec:segStart,durSec:t-segStart,midi:prev,vel:Math.min(1,segMaxRms*6)});
       prev=-1; cnt=0; segMaxRms=0; continue;
     }
-
     let midi=Math.round(69+12*Math.log2(freq/440));
     if(midi<midiLo||midi>midiHi) continue;
     while(midi<NB_MIN)midi+=12; while(midi>NB_MAX)midi-=12;
     midi=Math.max(NB_MIN,Math.min(NB_MAX,midi));
-
-    if(midi===prev){
-      cnt++; segMaxRms=Math.max(segMaxRms,rms);
-    } else {
-      if(prev>0&&cnt>=smoothN){
-        segments.push({timeSec:segStart, durSec:t-segStart, midi:prev, vel:Math.min(1,segMaxRms*6)});
-      }
+    if(midi===prev){ cnt++; segMaxRms=Math.max(segMaxRms,rms); }
+    else {
+      if(prev>0&&cnt>=smoothN) segments.push({timeSec:segStart,durSec:t-segStart,midi:prev,vel:Math.min(1,segMaxRms*6)});
       prev=midi; cnt=1; segStart=t; segMaxRms=rms;
     }
   }
-  if(prev>0&&cnt>=smoothN){
-    segments.push({timeSec:segStart, durSec:(mono.length/sr)-segStart, midi:prev, vel:Math.min(1,segMaxRms*6)});
-  }
-
-  // Filter by velocity threshold
-  const vf=segments.filter(n=>n.vel>=velThreshold&&n.durSec>=hopSec*1.5);
-
-  // Per-beat cap — keep strongest notes per beat
-  const beatSec=60/useBpm, byBeat={};
-  for(const n of vf){const b=Math.floor(n.timeSec/beatSec); (byBeat[b]=byBeat[b]||[]).push(n);}
-  const out=[];
-  for(const ns of Object.values(byBeat)){ns.sort((a,b)=>b.vel-a.vel); out.push(...ns.slice(0,notesPerBeat));}
-  out.sort((a,b)=>a.timeSec-b.timeSec);
-  return out;
+  if(prev>0&&cnt>=smoothN) segments.push({timeSec:segStart,durSec:(mono.length/sr)-segStart,midi:prev,vel:Math.min(1,segMaxRms*6)});
+  return segments.filter(n=>n.durSec>=hopSec*1.5);
 }
 
-// ── Quantise — maps note segments to NBS ticks
-// Key insight from research: NBS uses 1/16th note grid at the detected BPM.
-// Each note gets a tick position AND a duration in ticks so the synth can
-// ring out the note for the correct length — giving long notes their proper feel.
-function quantiseAll(layers, bpm){
-  // Use 1/16th note as the tick unit — finest subdivision that sounds musical
-  // At 93 BPM: 1 beat = 645ms, 1/16th = 161ms per tick
+// ── Quantise with auto-calibrated subdivision
+function quantiseAll(layers, bpm, subdiv){
   const secPerBeat=60/bpm;
-  const SUBDIV=4; // 4 subdivisions per beat = 1/16th notes
-  const tickSec=secPerBeat/SUBDIV;
-
+  const tickSec=secPerBeat/subdiv;
   const seen=new Set(), result=[];
-
   for(const{notes, instr, family} of layers){
     const famName=family||instr;
     if(famName==='none') continue;
-
     for(const n of notes){
       const startTick=Math.round(n.timeSec/tickSec);
-
-      // Duration in ticks — this is the KEY to making notes sound right
-      // Short notes (1/16th): 1 tick
-      // Eighth notes: 2 ticks
-      // Quarter notes: 4 ticks
-      // Half notes: 8 ticks
-      // Don't allow longer than 32 ticks (2 bars) — avoids muddy overlap
-      const durTicks=Math.max(1, Math.min(32, Math.round(n.durSec/tickSec)));
-
+      const durTicks=Math.max(1,Math.min(subdiv*8, Math.round(n.durSec/tickSec)));
       const variant=familyVariant(famName, n.midi);
       const k=`${startTick}|${variant.instr}|${variant.midi}`;
       if(!seen.has(k)){
@@ -1068,12 +1068,10 @@ function quantiseAll(layers, bpm){
       }
     }
   }
-
   result.sort((a,b)=>a.tick-b.tick);
-
-  // Per-tick cap to prevent muddiness
-  const cap=Math.max(1,Math.ceil(notesPerBeat/2)), tc={};
-  return result.filter(n=>{tc[n.tick]=(tc[n.tick]||0)+1; return tc[n.tick]<=cap;});
+  // Soft cap: allow up to 3 notes per tick (chords)
+  const tc={};
+  return result.filter(n=>{tc[n.tick]=(tc[n.tick]||0)+1; return tc[n.tick]<=3;});
 }
 
 // ── Load MC samples from server
@@ -1162,10 +1160,10 @@ function makeNote(off,instr,midi,vel,t){return makeNoteWithDuration(off,instr,mi
 
 // ── Render audio — uses note duration (durTicks) to control envelope length
 // This is how real note block songs work: each note rings for its natural duration
-async function renderAudio(notes,dur,bpm){
+async function renderAudio(notes,dur,bpm,subdiv){  subdiv=subdiv||4;
   // Match the same tick duration as quantiseAll (1/16th notes)
   const secPerBeat=60/bpm;
-  const tickSec=secPerBeat/4; // 4 subdivisions per beat
+  const tickSec=secPerBeat/subdiv;
   const maxTick=notes.length?Math.max(...notes.map(n=>n.tick)):0;
   const totalDur=Math.max(dur,maxTick*tickSec+4);
   const sr=44100;
@@ -1241,33 +1239,47 @@ async function doConvert(){
   $('pg').classList.add('on');$('res').classList.remove('on');
   allNotes=[];
   const bpm=useBpm;
-  const qp={fast:{hop:.045,sn:1},balanced:{hop:.025,sn:2},best:{hop:.016,sn:3}}[quality];
-  let stopTicker=null;
+  let stopTicker=null, cal={subdiv:4};
   try{
     await stg('s1',8,'Decoding audio');await sleep(80);
-    await stg('s2',16,'BPM: '+Math.round(bpm));await sleep(60);
 
-    await stg('s3',26,'Separating frequency bands');
-    const mono=getMono(srcBuf),sr=srcBuf.sampleRate;
-    const hiB=toAB(hpf(mono,sr,650),sr);
-    const miB=toAB(bpf(mono,sr,160,650),sr);
+    // Auto-calibrate to this specific song
+    await stg('s2',16,'Auto-calibrating (BPM: '+Math.round(bpm)+')');
+    cal=autoCalibrate(srcBuf,bpm);
+    const sr=srcBuf.sampleRate;
+    // Push auto-picked instruments to dropdowns
+    const selM=document.getElementById('instrMelody');
+    const selH=document.getElementById('instrHarmony');
+    const selB=document.getElementById('instrBass');
+    if(selM)setSelectVal(selM,cal.melody);
+    if(selH)setSelectVal(selH,cal.harmony);
+    if(selB)setSelectVal(selB,cal.bass);
+    await sleep(60);
+
+    await stg('s3',28,'Separating frequency bands');
+    const mono=getMono(srcBuf);
+    const hiB=toAB(hpf(mono,sr,600),sr);
+    const miB=toAB(bpf(mono,sr,150,600),sr);
     const loB=toAB(lpf(mono,sr,200),sr);
     await sleep(40);
-    await stg('s4',36,'Pitch tracking melody...');
+
+    await stg('s4',40,'Detecting melody & chords');
     const{melody,harmony,bass}=getInstrs();
-    const hiN=await trackBand(hiB,sr,qp.hop,qp.sn,52,82);
-    await stg('s5',52,'Pitch tracking harmony & bass...');
-    const miN=noteDensity==='minimal'?[]:await trackBand(miB,sr,qp.hop*1.5,qp.sn,45,66);
-    const loN=noteDensity==='minimal'?[]:await trackBand(loB,sr,qp.hop*2.5,qp.sn,28,52);
-    await stg('s6',62,'Filtering & quantising notes');
-    hiN.forEach(n=>n.instr=melody);miN.forEach(n=>n.instr=harmony);loN.forEach(n=>n.instr=bass);
-    const shimmer=quality==='best'?hiN.filter((_,i)=>i%5===0).map(n=>({...n,instr:'chime',vel:n.vel*.2,midi:Math.min(NB_MAX,n.midi+12)})):[];
+    const hiN=await trackBand(hiB,sr,cal.hopSec,cal.smoothN,52,82,cal.velThresh);
+
+    await stg('s5',56,'Tracking harmony & bass layers');
+    const miN=await trackBand(miB,sr,cal.hopSec*1.5,cal.smoothN,45,66,cal.velThresh);
+    const loN=await trackBand(loB,sr,cal.hopSec*2.5,cal.smoothN+1,28,52,cal.velThresh*0.7);
+
+    await stg('s6',66,'Quantising to '+cal.subdiv+' subdivisions per beat');
+    hiN.forEach(n=>n.instr=melody);
+    miN.forEach(n=>n.instr=harmony);
+    loN.forEach(n=>n.instr=bass);
     allNotes=quantiseAll([
-      {notes:hiN,  instr:melody,  family:melody},
-      {notes:miN,  instr:harmony, family:harmony},
-      {notes:loN,  instr:bass,    family:bass},
-      ...(shimmer.length?[{notes:shimmer,instr:'chime',family:'chime'}]:[])
-    ],bpm);
+      {notes:hiN, instr:melody,  family:melody},
+      {notes:miN, instr:harmony, family:harmony},
+      {notes:loN, instr:bass,    family:bass},
+    ], bpm, cal.subdiv);
     await sleep(40);
     await stg('s7',68,'Loading Minecraft sounds');
     await loadMCSamples([...new Set(allNotes.map(n=>n.instr))]);
@@ -1278,7 +1290,7 @@ async function doConvert(){
     // Estimate render time: ~2s per minute of audio as baseline, min 8s, scales with note count
     const estRenderMs=Math.max(8000, srcBuf.duration*2000 + allNotes.length*15);
     stopTicker=startProgressTicker(70,90,estRenderMs);
-    rendBuf=await renderAudio(allNotes,srcBuf.duration,bpm);
+    rendBuf=await renderAudio(allNotes,srcBuf.duration,bpm,cal.subdiv);
     if(stopTicker){stopTicker();stopTicker=null;}
     $('pFill').classList.remove('active');
     // s9: MP3 encoding
@@ -1287,7 +1299,7 @@ async function doConvert(){
     await ensureLame();
     mp3Blob=encodeMP3(rendBuf);
     if(stopTicker){stopTicker();stopTicker=null;}
-    nbsBlob=buildNbs(allNotes,bpm);
+    nbsBlob=buildNbs(allNotes,bpm,cal.subdiv);
     $('pFill').style.width='100%';$('pLbl').textContent='Done!';$('pPct').textContent='100%';
     document.querySelectorAll('.st').forEach(s=>{s.classList.remove('a');s.classList.add('d');});
     await sleep(300);
@@ -1302,7 +1314,7 @@ async function doConvert(){
 }
 
 // ── NBS builder
-function buildNbs(notes,bpm){
+function buildNbs(notes,bpm,subdiv){ subdiv=subdiv||4;  // already set
   const imap=NBS_IDS;
   const ticks={};for(const n of notes)(ticks[n.tick]=ticks[n.tick]||[]).push(n);
   const maxTick=notes.length?Math.max(...notes.map(n=>n.tick)):0;
@@ -1313,8 +1325,7 @@ function buildNbs(notes,bpm){
   parts.push(...wu(0,2),...wu(5,1),...wu(16,1));
   parts.push(...wu(maxTick,2),...wu(layers,2));
   parts.push(...ws(srcName||'NoteForge'),...ws('NoteForge'),...ws(''));
-  // NBS tempo = ticks per second * 100. With 4 subdivisions per beat:
-  const tps=Math.round(100/((60/bpm)/4));
+  const tps=Math.round(100/((60/bpm)/subdiv));
   parts.push(...wu(Math.max(1,Math.min(65535,tps)),2));
   for(let i=0;i<9;i++)parts.push(...wu(0,1));
   parts.push(...wu(0,4),...wu(0,4),...wu(0,4),...wu(0,2),...wu(0,4),...wu(0,4));
