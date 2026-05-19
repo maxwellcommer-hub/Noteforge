@@ -62,7 +62,7 @@ body::before{
   box-shadow:inset -2px -2px 0 #000, inset 2px 2px 0 rgba(255,255,255,0.2);
 }
 
-.wrap{max-width:680px;margin:0 auto;padding:24px 14px 80px;position:relative;z-index:1}
+.wrap{max-width:680px;margin:0 auto;padding:28px 22px 80px;position:relative;z-index:1}
 
 /* ── Header ── */
 .hdr{text-align:center;margin-bottom:28px;padding:20px 0 16px}
@@ -104,8 +104,8 @@ body::before{
   border-left:3px solid #3a3a5c;
   border-bottom:3px solid #08080f;
   border-right:3px solid #08080f;
-  padding:16px;
-  margin-bottom:10px;
+  padding:20px 22px;
+  margin-bottom:12px;
   position:relative;
 }
 .panel-title{
@@ -435,19 +435,6 @@ canvas{display:block;width:100%}
     <div class="chip" id="chip"><span>🎵</span><span class="cn" id="cn"></span><span class="cs" id="cs"></span></div>
   </div>
 
-    <div class="yt-row" style="margin-bottom:10px">
-      <input class="yt-in" id="ytUrl" type="url" placeholder="Paste YouTube URL here...">
-      <button class="btn-yt" id="btnOpenCobalt" onclick="openCobalt()">OPEN ↗</button>
-    </div>
-    <div style="font-size:12px;color:var(--dgray);line-height:1.9;
-      background:var(--dp);padding:10px 12px;border-left:3px solid var(--gold)">
-      <span style="color:var(--gold);font-family:'Press Start 2P',monospace;font-size:8px">HOW TO:</span><br>
-      1. Paste your YouTube link above and tap OPEN ↗<br>
-      2. On cobalt.tools — tap <span style="color:var(--aqua)">Download</span> → select <span style="color:var(--aqua)">Audio only</span><br>
-      3. Save the MP3 to your phone/computer<br>
-      4. Come back here → switch to <span style="color:var(--green)">MP3 FILE</span> tab → upload it
-    </div>
-  </div>
 
   <div class="dbar" id="dbar">
     <div class="di"><span class="dk">BPM:</span><span class="dv" id="dBpm">—</span></div>
@@ -791,17 +778,35 @@ async function loadFile(f){
   reader.readAsArrayBuffer(f);
 }
 
-// ── YouTube helper — opens cobalt.tools with the URL pre-filled
-function openCobalt(){
-  const url=document.getElementById('ytUrl').value.trim();
-  if(!url){alert('Paste a YouTube URL first');return;}
-  // cobalt.tools is a free, open source YouTube to MP3 converter
-  // It works in the browser without any bot detection issues
-  const cobaltUrl='https://cobalt.tools/';
-  window.open(cobaltUrl,'_blank');
+
+
+// ── Instrument UI helpers
+function setSelectVal(sel,val){
+  for(let i=0;i<sel.options.length;i++){
+    if(sel.options[i].value===val){sel.selectedIndex=i;return;}
+  }
+}
+
+function getInstrs(){
+  return{
+    melody:  document.getElementById('instrMelody')?.value  || 'harp',
+    harmony: document.getElementById('instrHarmony')?.value || 'guitar',
+    bass:    document.getElementById('instrBass')?.value    || 'bass',
+  };
+}
+
+function previewInstrs(buf){
+  const{melody,harmony,bass}=pickInstrs(buf);
+  const m=document.getElementById('instrMelody');
+  const h=document.getElementById('instrHarmony');
+  const b=document.getElementById('instrBass');
+  if(m)setSelectVal(m,melody);
+  if(h)setSelectVal(h,harmony);
+  if(b)setSelectVal(b,bass);
 }
 
 // ── After audio loads
+
 async function afterLoad(){
   $('dDur').textContent=fmt(srcBuf.duration)+' ('+Math.round(srcBuf.duration)+'s)';
   const bpm=await detectBpm(srcBuf);
