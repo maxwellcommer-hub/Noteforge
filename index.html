@@ -296,7 +296,7 @@ input[type=range].mc-sl::-webkit-slider-thumb{
   margin-bottom:10px;
 }
 .pb-fill{
-  height:100%;background:var(--grass);width:0%;transition:width .4s ease;
+  height:100%;background:var(--grass);width:0%;transition:width .15s linear;
   position:relative;
   /* Minecraft-style striped progress */
   background-image:repeating-linear-gradient(
@@ -451,56 +451,55 @@ canvas{display:block;width:100%}
   </div>
 
   <div id="instrWrap" style="display:none">
-    <div class="il">INSTRUMENT FAMILIES — each layer auto-uses all pitch variants</div>
-    <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-size:13px;color:var(--green);min-width:64px">♪ MELODY</span>
-        <select id="instrMelody" class="mc-select">
-          <option value="harp">Harp family</option>
-          <option value="bell">Bell family</option>
-          <option value="xylophone">Xylophone family</option>
-          <option value="flute">Flute family</option>
-          <option value="chime">Chime family</option>
-          <option value="bit">Bit — 8-bit family</option>
-          <option value="pling">Pling family</option>
-          <option value="banjo">Banjo family</option>
-          <option value="guitar">Guitar family</option>
-          <option value="iron_xylophone">Iron Xylophone family</option>
-          <option value="cow_bell">Cow Bell family</option>
+    <div class="il">AUTO-DETECTED INSTRUMENTS — 🔊 previews sound, change triggers instant re-render</div>
+    <div style="display:flex;flex-direction:column;gap:7px;margin-top:6px">
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:13px;color:var(--green);width:60px;flex-shrink:0">♪ MELODY</span>
+        <button onclick="previewInstr('instrMelody')" style="background:var(--dp);border:1px solid var(--green);color:var(--green);font-size:12px;padding:4px 8px;cursor:pointer;flex-shrink:0">🔊</button>
+        <select id="instrMelody" class="mc-select" onchange="quickRerender()">
+          <option value="harp">Harp</option>
+          <option value="bell">Bell</option>
+          <option value="xylophone">Xylophone</option>
+          <option value="flute">Flute</option>
+          <option value="chime">Chime</option>
+          <option value="bit">Bit (8-bit)</option>
+          <option value="pling">Pling</option>
+          <option value="banjo">Banjo</option>
+          <option value="guitar">Guitar</option>
+          <option value="iron_xylophone">Iron Xylophone</option>
+          <option value="cow_bell">Cow Bell</option>
         </select>
       </div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-size:13px;color:var(--aqua);min-width:64px">♫ HARMONY</span>
-        <select id="instrHarmony" class="mc-select">
-          <option value="guitar">Guitar family</option>
-          <option value="banjo">Banjo family</option>
-          <option value="harp">Harp family</option>
-          <option value="flute">Flute family</option>
-          <option value="bit">Bit — 8-bit family</option>
-          <option value="pling">Pling family</option>
-          <option value="xylophone">Xylophone family</option>
-          <option value="chime">Chime family</option>
-          <option value="iron_xylophone">Iron Xylophone family</option>
-          <option value="bell">Bell family</option>
-          <option value="cow_bell">Cow Bell family</option>
-          <option value="none">— None (skip layer) —</option>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:13px;color:var(--aqua);width:60px;flex-shrink:0">♫ HARMONY</span>
+        <button onclick="previewInstr('instrHarmony')" style="background:var(--dp);border:1px solid var(--aqua);color:var(--aqua);font-size:12px;padding:4px 8px;cursor:pointer;flex-shrink:0">🔊</button>
+        <select id="instrHarmony" class="mc-select" onchange="quickRerender()">
+          <option value="guitar">Guitar</option>
+          <option value="banjo">Banjo</option>
+          <option value="harp">Harp</option>
+          <option value="flute">Flute</option>
+          <option value="bit">Bit (8-bit)</option>
+          <option value="pling">Pling</option>
+          <option value="xylophone">Xylophone</option>
+          <option value="chime">Chime</option>
+          <option value="iron_xylophone">Iron Xylophone</option>
+          <option value="bell">Bell</option>
+          <option value="cow_bell">Cow Bell</option>
+          <option value="none">— None —</option>
         </select>
       </div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-size:13px;color:var(--gold);min-width:64px">♩ BASS</span>
-        <select id="instrBass" class="mc-select">
-          <option value="bass">Bass family</option>
-          <option value="didgeridoo">Didgeridoo family</option>
-          <option value="harp">Harp family</option>
-          <option value="guitar">Guitar family</option>
-          <option value="bit">Bit — 8-bit family</option>
-          <option value="none">— None (skip layer) —</option>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:13px;color:var(--gold);width:60px;flex-shrink:0">♩ BASS</span>
+        <button onclick="previewInstr('instrBass')" style="background:var(--dp);border:1px solid var(--gold);color:var(--gold);font-size:12px;padding:4px 8px;cursor:pointer;flex-shrink:0">🔊</button>
+        <select id="instrBass" class="mc-select" onchange="quickRerender()">
+          <option value="bass">Bass</option>
+          <option value="didgeridoo">Didgeridoo</option>
+          <option value="harp">Harp</option>
+          <option value="guitar">Guitar</option>
+          <option value="bit">Bit (8-bit)</option>
+          <option value="none">— None —</option>
         </select>
       </div>
-    </div>
-    <div style="font-size:12px;color:var(--dgray);margin-top:8px;line-height:1.6">
-      Each family uses multiple block variants (octave shifts) so every note in the song<br>
-      is covered — no notes get skipped or clamped.
     </div>
   </div>
 </div>
@@ -771,6 +770,76 @@ async function loadFile(f){
 
 
 
+// ── Preview an instrument by playing a middle C note
+async function previewInstr(selectId){
+  ensureCtx();
+  const sel=document.getElementById(selectId);
+  if(!sel)return;
+  const instr=sel.value;
+  if(instr==='none')return;
+  // Load sample if available
+  await loadMCSamples([instr]);
+  // Play a preview note (middle C = MIDI 60, mapped to NB range)
+  let midi=Math.max(NB_MIN,Math.min(NB_MAX,60));
+  const variant=familyVariant(instr,midi);
+  const off=new OfflineAudioContext(1,Math.ceil(audioCtx.sampleRate*1.5),audioCtx.sampleRate);
+  const master=off.createGain();master.gain.value=0.8;master.connect(off.destination);
+  makeNoteWithDuration(off,variant.instr,variant.midi,0,0.4).connect(master);
+  const rendered=await off.startRendering();
+  const src=audioCtx.createBufferSource();
+  src.buffer=rendered;
+  src.connect(audioCtx.destination);
+  src.start();
+}
+
+// ── Re-render with new instruments without re-running pitch detection
+// Uses the existing allNotes array, just swaps instrument assignments
+let isRerendering=false;
+async function quickRerender(){
+  if(!allNotes.length||isRerendering)return;
+  isRerendering=true;
+  const btn=document.getElementById('btnGo');
+  const origText=btn.textContent;
+  btn.textContent='⟳ RE-RENDERING...';
+  btn.disabled=true;
+  try{
+    const{melody,harmony,bass}=getInstrs();
+    // Remap notes by their stored pitch range
+    const remapped=allNotes.map(n=>{
+      // Determine which layer this note belongs to by pitch
+      let fam;
+      if(n.midi>=52)fam=melody==='none'?null:melody;
+      else if(n.midi>=45)fam=harmony==='none'?null:harmony;
+      else fam=bass==='none'?null:bass;
+      if(!fam)return null;
+      const v=familyVariant(fam,n.midi);
+      return{...n,instr:v.instr,midi:v.midi,family:fam};
+    }).filter(Boolean);
+    // Load any new samples needed
+    await loadMCSamples([...new Set(remapped.map(n=>n.instr))]);
+    // Re-render audio
+    rendBuf=await renderAudio(remapped,rendBuf?rendBuf.duration:srcBuf.duration,useBpm,4);
+    // Update allNotes with new mapping
+    allNotes.length=0; allNotes.push(...remapped);
+    // Encode new MP3
+    await ensureLame();
+    mp3Blob=encodeMP3(rendBuf);
+    nbsBlob=buildNbs(allNotes,useBpm,4);
+    // Update UI
+    const instrs=[...new Set(allNotes.map(n=>n.instr))];
+    const badge=document.getElementById('rBadge');
+    if(badge)badge.textContent=instrs.join(' + ');
+    drawWave(); drawRoll();
+    // Restart playback if it was playing
+    if(isPlaying){stopPlay();startPlay();}
+  }catch(e){console.error('Quick re-render failed:',e);}
+  finally{
+    isRerendering=false;
+    btn.textContent=origText;
+    btn.disabled=false;
+  }
+}
+
 // ── Instrument UI helpers
 function setSelectVal(sel,val){
   for(let i=0;i<sel.options.length;i++){
@@ -908,28 +977,43 @@ function analyseSpec(buf){
 
 function pickInstrs(buf){
   const{lo,mid,hi}=analyseSpec(buf);
-  // Compute spectral centroid (brightness) and bass ratio
-  const brightness=hi/(hi+mid+lo+0.001);
-  const bassHeavy=lo>0.35;
-  const midHeavy=mid>0.45;
-  const topHeavy=hi>0.25;
+  const tot=lo+mid+hi+0.001;
 
-  // Melody: match brightness to instrument character
-  // harp=warm/balanced, flute=soft/airy, xylophone=bright/percussive, bell=very bright/metallic
+  // Spectral centroid score 0-1 (0=all bass, 1=all treble)
+  const centroid=(mid*0.4+hi*1.0)/tot;
+  // Warmth = how much bass+low-mid there is
+  const warmth=(lo+mid*0.5)/tot;
+  // Presence = upper-mid energy (where most melodic instruments live)
+  const presence=mid/tot;
+  // Brightness = treble energy
+  const brightness=hi/tot;
+
+  // ── Melody instrument
+  // Maps spectral character to how real note block composers choose:
+  // - Electronic/synth-heavy songs (high hi) → bit or pling
+  // - Bright/orchestral (moderate hi) → bell or xylophone
+  // - Warm/vocal (mid-dominant) → harp (the "piano" of note blocks)
+  // - Soft/atmospheric (lo-mid dominant) → flute or chime
   let melody;
-  if(topHeavy)       melody='bell';
-  else if(brightness>0.18) melody='xylophone';
-  else if(midHeavy)  melody='harp';
-  else               melody='flute';
+  if(brightness>0.30)        melody='bell';       // very bright: bells cut through
+  else if(brightness>0.20)   melody='xylophone';  // bright: xylophone is crisp
+  else if(presence>0.48)     melody='harp';       // mid-heavy: harp is warm piano
+  else if(presence>0.35)     melody='banjo';      // moderate mid: banjo has pluck
+  else if(warmth>0.60)       melody='flute';      // warm/soft: flute is breathy
+  else                       melody='harp';       // default: harp is most versatile
 
-  // Harmony: guitar for mid-heavy songs (plucked), banjo for bright (twangy), flute for soft
+  // ── Harmony instrument
+  // Should complement melody — different enough to stand out
   let harmony;
-  if(topHeavy)       harmony='xylophone';
-  else if(midHeavy)  harmony='guitar';
-  else               harmony='banjo';
+  if(melody==='bell'||melody==='xylophone') harmony='harp';    // bright melody → warm harmony
+  else if(melody==='harp')                  harmony='guitar';  // warm melody → plucked harmony
+  else if(melody==='flute')                 harmony='chime';   // soft melody → bright harmony
+  else if(melody==='banjo')                 harmony='guitar';  // similar timbre for strumming
+  else                                      harmony='guitar';
 
-  // Bass: didgeridoo for bass-heavy songs (deep), bass guitar otherwise
-  const bass = bassHeavy ? 'didgeridoo' : 'bass';
+  // ── Bass instrument
+  // Didgeridoo for slower/atmospheric (lo-heavy), bass for rhythmic/defined
+  const bass = (lo>0.30 && centroid<0.35) ? 'didgeridoo' : 'bass';
 
   return{melody, harmony, bass};
 }
@@ -957,7 +1041,7 @@ function yin(buf,sr){
 }
 
 // ── Track a frequency band with onset/offset detection
-async function trackBand(abuf, sr, hopSec, smoothN, midiLo, midiHi, autoVelThresh){
+async function trackBand(abuf, sr, hopSec, smoothN, midiLo, midiHi, autoVelThresh, onProgress){
   autoVelThresh=autoVelThresh!==undefined?autoVelThresh:velThreshold;
   const mono=abuf.getChannelData(0);
   const fSz=Math.round(sr*0.046), hop=Math.round(sr*hopSec);
@@ -1224,11 +1308,24 @@ async function doConvert(){
     const smoothN = bpm>130 ? 1 : 2;
 
     await stg('s4',38,'Pitch tracking melody...');
-    const hiN=await trackBand(hiB,sr,hopSec,smoothN,52,82,velThreshold);
+    const totalFrames=hiB.getChannelData(0).length;
+    const hiN=await trackBand(hiB,sr,hopSec,smoothN,52,82,velThreshold,pct=>{
+      const overall=38+pct*16; // s4 goes from 38% to 54%
+      $('pFill').style.width=overall+'%';
+      $('pPct').textContent=Math.round(overall)+'%';
+    });
 
     await stg('s5',54,'Pitch tracking harmony & bass...');
-    const miN=noteDensity==='minimal'?[]:await trackBand(miB,sr,hopSec*1.5,smoothN,45,66,velThreshold);
-    const loN=noteDensity==='minimal'?[]:await trackBand(loB,sr,hopSec*2.5,smoothN+1,28,52,velThreshold*0.7);
+    const miN=noteDensity==='minimal'?[]:await trackBand(miB,sr,hopSec*1.5,smoothN,45,66,velThreshold,pct=>{
+      const overall=54+pct*8;
+      $('pFill').style.width=overall+'%';
+      $('pPct').textContent=Math.round(overall)+'%';
+    });
+    const loN=noteDensity==='minimal'?[]:await trackBand(loB,sr,hopSec*2.5,smoothN+1,28,52,velThreshold*0.7,pct=>{
+      const overall=62+pct*4;
+      $('pFill').style.width=overall+'%';
+      $('pPct').textContent=Math.round(overall)+'%';
+    });
 
     await stg('s6',64,'Quantising to BPM grid');
     hiN.forEach(n=>n.instr=melody);
