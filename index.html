@@ -1096,13 +1096,26 @@ function yin(buf,sr){
   return r>1?sr/r:-1;
 }
 
-// ── Pitch tracker with onset/offset detection and progress callback
-// Produces note segments with precise start time and duration
-async function trackBand(abuf,sr,hopSec,smoothN,midiLo,midiHi,autoVelThresh,onProgress){
+// ── Pitch tracker with onset/offset detection and staccato awareness
+// Key fix for songs like Mission Impossible:
+// - Tracks energy dips WITHIN the same pitch to detect repeated staccato notes
+// - smoothN=1 always so even single-frame notes register
+// - Energy dip threshold: if RMS drops >60% from peak mid-note → close and reopen
+async function trackBand(abuf,sr,hopSec,_unused,midiLo,midiHi,autoVelThresh,onProgress){
   autoVelThresh=autoVelThresh!==undefined?autoVelThresh:velThreshold;
   const mono=abuf.getChannelData(0);
   const fSz=Math.round(sr*0.046),hop=Math.round(sr*hopSec);
-  const segments=[];let prev=-1,cnt=0,segStart=0,segMaxRms=0,frame=0;
+  const segments=[];
+  let prev=-1,segStart=0,segMaxRms=0,segLastRms=0,frame=0;
+
+  const pushSeg=(t)=>{
+    if(prev>0)segments.push({
+      timeSec:segStart, durSec:t-segStart,
+      midi:prev, vel:Math.min(1,segMaxRms*6)
+    });
+    prev=-1; segMaxRms=0; segLastRms=0;
+  };
+
   for(let pos=0;pos+fSz<mono.length;pos+=hop,frame++){
     if(frame%50===0){
       await sleep(0);
@@ -1111,28 +1124,40 @@ async function trackBand(abuf,sr,hopSec,smoothN,midiLo,midiHi,autoVelThresh,onPr
     const f=mono.slice(pos,pos+fSz);
     const rms=Math.sqrt(f.reduce((s,v)=>s+v*v,0)/f.length);
     const t=pos/sr;
-    if(rms<autoVelThresh){
-      if(prev>0&&cnt>=smoothN)segments.push({timeSec:segStart,durSec:t-segStart,midi:prev,vel:Math.min(1,segMaxRms*6)});
-      prev=-1;cnt=0;segMaxRms=0;continue;
-    }
+
+    // Silence — close current note
+    if(rms<autoVelThresh){ pushSeg(t); continue; }
+
     const freq=yin(f,sr);
-    if(freq<=0||freq>6000){
-      if(prev>0&&cnt>=smoothN)segments.push({timeSec:segStart,durSec:t-segStart,midi:prev,vel:Math.min(1,segMaxRms*6)});
-      prev=-1;cnt=0;segMaxRms=0;continue;
-    }
+    if(freq<=0||freq>6000){ pushSeg(t); continue; }
+
     let midi=Math.round(69+12*Math.log2(freq/440));
-    if(midi<midiLo||midi>midiHi)continue;
-    while(midi<NB_MIN)midi+=12;while(midi>NB_MAX)midi-=12;
+    if(midi<midiLo||midi>midiHi){ pushSeg(t); continue; }
+    while(midi<NB_MIN)midi+=12; while(midi>NB_MAX)midi-=12;
     midi=Math.max(NB_MIN,Math.min(NB_MAX,midi));
-    if(midi===prev){cnt++;segMaxRms=Math.max(segMaxRms,rms);}
-    else{
-      if(prev>0&&cnt>=smoothN)segments.push({timeSec:segStart,durSec:t-segStart,midi:prev,vel:Math.min(1,segMaxRms*6)});
-      prev=midi;cnt=1;segStart=t;segMaxRms=rms;
+
+    if(midi===prev){
+      // Same pitch continuing — check for staccato energy dip
+      // If energy dropped significantly from this note's peak, it's a new hit
+      const dipRatio=rms/segMaxRms;
+      if(dipRatio<0.35&&segLastRms<segMaxRms*0.5&&t-segStart>hopSec*1.5){
+        // Energy dipped — close old note, open new one at same pitch
+        segments.push({timeSec:segStart,durSec:t-segStart,midi:prev,vel:Math.min(1,segMaxRms*6)});
+        segStart=t; segMaxRms=rms; segLastRms=rms;
+      } else {
+        segMaxRms=Math.max(segMaxRms,rms);
+        segLastRms=rms;
+      }
+    } else {
+      // Different pitch — close old, start new
+      pushSeg(t);
+      prev=midi; segStart=t; segMaxRms=rms; segLastRms=rms;
     }
   }
-  if(prev>0&&cnt>=smoothN)segments.push({timeSec:segStart,durSec:(mono.length/sr)-segStart,midi:prev,vel:Math.min(1,segMaxRms*6)});
-  // Allow notes as short as 1 hop — fills gaps for fast songs
-  return segments.filter(n=>n.durSec>=hopSec*0.5);
+  pushSeg(mono.length/sr);
+
+  // Filter: minimum note duration = 1 hop (very permissive to catch staccato)
+  return segments.filter(n=>n.durSec>=hopSec*0.5&&n.midi>0);
 }
 
 // ── Quantise notes to BPM grid
@@ -1150,7 +1175,9 @@ function quantiseAll(layers,bpm,subdiv){
       // Duration: map actual note duration to grid
       // Minimum 1 tick, maximum 1 full beat (subdiv ticks)
       // This prevents notes bleeding into the next measure
-      const durTicks=Math.max(1,Math.min(subdiv,Math.round(n.durSec/tickSec)));
+      // Use actual note duration — short staccato notes get 1-2 ticks,
+      // long held notes get up to subdiv*2 ticks (2 beats max)
+      const durTicks=Math.max(1,Math.min(subdiv*2,Math.round(n.durSec/tickSec)));
       const variant=familyVariant(famName,n.midi);
       const k=`${startTick}|${variant.instr}|${variant.midi}`;
       if(!seen.has(k)){
