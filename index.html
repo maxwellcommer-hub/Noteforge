@@ -532,8 +532,8 @@ input[type=range].mc-sl::-webkit-slider-thumb{
   </div>
 
   <div id="pane-midi" class="pane">
-    <div class="dz" id="dzMidi" onclick="document.getElementById('fiMidi').click();event.stopPropagation();">
-      <input type="file" id="fiMidi" accept=".mid,.midi" style="display:none">
+    <div class="dz" id="dzMidi">
+      <input type="file" id="fiMidi" accept=".mid,.midi">
       <span class="dz-icon">🎹</span>
       <div class="dz-t">DROP MIDI OR TAP TO BROWSE</div>
       <div class="dz-s">.mid / .midi · skips pitch detection, sounds better</div>
@@ -1498,8 +1498,8 @@ async function doConvert(){
   hideErr();$('btnGo').disabled=true;
   $('pg').classList.add('on');$('res').classList.remove('on');
   allNotes=[];
-  // MIDI shortcut — skip ALL pitch detection stages entirely
-  if(isMidiMode&&midiSrcNotes&&midiSrcNotes.length>0){
+  // MIDI shortcut — skip all pitch tracking
+  if(isMidiMode&&midiSrcNotes.length){
     try{
       await stg('s1',10,'Loading MIDI notes...');await sleep(50);
       const bpm=midiSrcNotes._bpm*(speedPct/100)||120;
@@ -1899,7 +1899,6 @@ async function loadMidiFile(f){
   if(chipMidi)chipMidi.style.display='flex';
   $('res').classList.remove('on');
   isMidiMode=true;
-  srcBuf=null; // prevent MP3 pitch-detection path from running
   const applyBtn=document.getElementById('btnApplyInstrs');
   if(applyBtn)applyBtn.style.display='none';
   document.getElementById('instrWrap').style.display='none';
