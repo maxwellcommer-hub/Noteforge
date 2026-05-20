@@ -885,53 +885,172 @@ async function afterLoad(){
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// AUDIO ENGINE v4 — Polyphonic chord detection + auto instrument calibration
+// AUDIO ENGINE v5 — Research-backed, handles all song types
 //
-// Key research findings:
-// - Real note block songs use stem separation then per-stem pitch tracking
-// - Bass/didgeridoo = 2 octaves below standard, guitar = 1 below, 
-//   flute/bell/chime/xylophone = 1-2 octaves above (6 octave total range)
-// - Chords need multiple simultaneous pitches detected per frame
-// - Note duration from onset/offset detection, not fixed quantization
-// - Auto-calibrate everything from the song's spectral & rhythmic content
+// What real note block composers do (from research):
+// 1. They work from MIDI — each note has precise start, duration, pitch, velocity
+// 2. Instruments chosen to match song character: harp=piano/warm, bell=bright/metallic,
+//    bit=electronic, guitar=plucked/rock, bass=deep/rhythmic
+// 3. For heavy songs (Iron Man etc): the GUITAR is key — it can do power chords
+//    and has the right tonal character. Bit/pling for synth-heavy sections.
+// 4. Note duration is CRITICAL — a quarter note should sound like a quarter note,
+//    not a 16th note. The envelope must hold for the full note length.
+// 5. Velocity from RMS tells the dynamic story of the song (loud chorus vs quiet verse)
+// 6. BPM must be stored as nearest 0.15 BPM multiple for NBS accuracy
+// 7. Subdivision: real songs use 1/8th note grid (2 per beat) for most songs,
+//    1/16th (4 per beat) only for very fast/detailed songs
 // ═══════════════════════════════════════════════════════════════════════
 
-// ── BPM Detection
+// ── Song character analysis — determines genre/type and best instruments
+// This is the most important function for "one-click" quality
+function analyseSong(buf){
+  const mono=getMono(buf), sr=buf.sampleRate;
+  const N=4096;
+  
+  // Analyse multiple windows spread across the song body (skip intro/outro)
+  const songLen=buf.duration;
+  const startSec=Math.min(songLen*0.1, 10);
+  const endSec=Math.max(songLen*0.9, songLen-10);
+  const windows=8;
+  const stepSec=(endSec-startSec)/windows;
+  
+  let lo=0,mid=0,hi=0,tot=0;
+  let transientEnergy=0, sustainEnergy=0;
+  let peakRms=0, avgRms=0, rmsCount=0;
+  let zeroCrossRate=0;
+  
+  for(let w=0;w<windows;w++){
+    const startSamp=Math.round((startSec+w*stepSec)*sr);
+    if(startSamp+N>=mono.length) continue;
+    const frame=mono.subarray(startSamp,startSamp+N);
+    
+    // RMS of this window
+    let rms=0; for(let i=0;i<N;i++) rms+=frame[i]*frame[i];
+    rms=Math.sqrt(rms/N);
+    if(rms<0.001) continue;
+    peakRms=Math.max(peakRms,rms);
+    avgRms+=rms; rmsCount++;
+    
+    // Zero crossing rate (high = noisy/percussive, low = tonal)
+    let zc=0; for(let i=1;i<N;i++) if(frame[i]*frame[i-1]<0) zc++;
+    zeroCrossRate+=zc/N;
+    
+    // Transient vs sustain energy
+    let tE=0,sE=0;
+    for(let i=1;i<N;i++){
+      const diff=Math.abs(frame[i]-frame[i-1]);
+      if(diff>0.05) tE+=diff; else sE+=frame[i]*frame[i];
+    }
+    transientEnergy+=tE; sustainEnergy+=sE;
+    
+    // Spectral analysis
+    for(let k=1;k<N/2;k++){
+      const freq=k*sr/N;
+      let re=0,im=0;
+      for(let n=0;n<Math.min(N,512);n++){
+        const a=2*Math.PI*k*n/N;
+        re+=frame[n]*Math.cos(a); im+=frame[n]*Math.sin(a);
+      }
+      const mag=Math.sqrt(re*re+im*im);
+      if(freq<250)lo+=mag; else if(freq<2200)mid+=mag; else hi+=mag; tot+=mag;
+    }
+  }
+  
+  if(!rmsCount) return{melody:'harp',harmony:'guitar',bass:'bass',subdiv:4};
+  
+  avgRms/=rmsCount;
+  zeroCrossRate/=rmsCount;
+  const dynamicRange=peakRms/(avgRms+0.001); // high = lots of dynamics
+  const transientRatio=transientEnergy/(transientEnergy+sustainEnergy+0.001);
+  const loR=lo/tot, midR=mid/tot, hiR=hi/tot;
+  
+  // ── Genre classification based on spectral + transient features
+  // Heavy/rock: lo-heavy, high transients, moderate ZCR
+  const isHeavy = loR>0.25 && transientRatio>0.15;
+  // Electronic/synth: very flat spectrum, low transients
+  const isElectronic = hiR>0.25 && transientRatio<0.12;
+  // Orchestral/cinematic: wide spectrum, high dynamics
+  const isOrchestral = dynamicRange>3 && midR>0.40;
+  // Soft/ambient: low transients, lo-mid heavy
+  const isSoft = transientRatio<0.08 && loR+midR>0.75;
+  // Bright/pop: hi-heavy, moderate transients
+  const isBright = hiR>0.20 && !isHeavy;
+  
+  // ── Instrument selection based on genre
+  let melody, harmony, bass;
+  
+  if(isHeavy){
+    // Rock/metal: guitar family carries the power, bit for crunch
+    melody='guitar';   // guitar has the right rough attack
+    harmony='bit';     // bit adds electronic edge/crunch  
+    bass='bass';       // strong defined bass
+  } else if(isElectronic){
+    melody='bit';      // 8-bit for synth leads
+    harmony='pling';   // pling for pads
+    bass='bass';
+  } else if(isOrchestral){
+    melody='bell';     // bell for bright orchestral lead
+    harmony='harp';    // harp for warm accompaniment
+    bass='didgeridoo'; // didgeridoo for deep cinematic bass
+  } else if(isSoft){
+    melody='flute';    // flute for breathy/gentle
+    harmony='chime';   // chime for shimmer
+    bass='bass';
+  } else if(isBright){
+    melody=hiR>0.28?'bell':'xylophone'; // bells/xylophone for bright melodies
+    harmony='harp';
+    bass='bass';
+  } else {
+    // Default: warm/balanced (most pop songs)
+    melody='harp';     // harp is the standard piano equivalent
+    harmony='guitar';  // guitar for rhythm/harmony
+    bass='bass';
+  }
+  
+  // ── Subdivision: how fine the time grid should be
+  // Fast songs or songs with lots of quick notes → 1/16th (subdiv=4)
+  // Normal songs → 1/8th (subdiv=2) gives cleaner longer notes
+  const subdiv = transientRatio>0.18 ? 4 : 2;
+  
+  return{melody, harmony, bass, subdiv,
+    // Expose analysis for debugging
+    loR:loR.toFixed(2), midR:midR.toFixed(2), hiR:hiR.toFixed(2),
+    isHeavy, isElectronic, isOrchestral, isSoft, isBright,
+    transientRatio:transientRatio.toFixed(3), dynamicRange:dynamicRange.toFixed(2)};
+}
+
+// ── BPM Detection via onset autocorrelation
 async function detectBpm(buf){
   const sr=buf.sampleRate, mono=getMono(buf);
-  const use=Math.min(mono.length, sr*90);
+  const use=Math.min(mono.length,sr*90);
   const data=mono.subarray(0,use);
-  const fps=200, hop=Math.round(sr/fps), win=hop*2;
+  const fps=200,hop=Math.round(sr/fps),win=hop*2;
   const env=[];
-  for(let i=0;i+win<data.length;i+=hop){
-    let e=0; for(let j=0;j<win;j++) e+=data[i+j]*data[i+j];
-    env.push(Math.sqrt(e/win));
-  }
+  for(let i=0;i+win<data.length;i+=hop){let e=0;for(let j=0;j<win;j++)e+=data[i+j]*data[i+j];env.push(Math.sqrt(e/win));}
   const odf=new Float32Array(env.length);
-  for(let i=3;i<env.length;i++){const d=env[i]-env[i-1]; odf[i]=d>0?d:0;}
+  for(let i=3;i<env.length;i++){const d=env[i]-env[i-1];odf[i]=d>0?d:0;}
   const candidates=[];
   for(let bpm=50;bpm<=250;bpm+=0.25){
-    const lag=fps*60/bpm, lagI=Math.round(lag);
-    if(lagI<2||lagI>=odf.length-2) continue;
-    let score=0;
-    const lim=Math.min(odf.length-lagI, Math.ceil(fps*60));
-    for(let i=0;i<lim;i++) score+=odf[i]*odf[i+lagI];
-    score/=lim;
+    const lag=fps*60/bpm,lagI=Math.round(lag);
+    if(lagI<2||lagI>=odf.length-2)continue;
+    let score=0;const lim=Math.min(odf.length-lagI,Math.ceil(fps*60));
+    for(let i=0;i<lim;i++)score+=odf[i]*odf[i+lagI]; score/=lim;
     const lag2=lagI*2;
-    if(lag2<odf.length){let s2=0,c2=0; for(let i=0;i+lag2<odf.length&&i<lim;i++){s2+=odf[i]*odf[i+lag2];c2++;} if(c2>0)score+=0.5*(s2/c2);}
+    if(lag2<odf.length){let s2=0,c2=0;for(let i=0;i+lag2<odf.length&&i<lim;i++){s2+=odf[i]*odf[i+lag2];c2++;}if(c2>0)score+=0.5*(s2/c2);}
     const lagH=Math.round(lagI/2);
-    if(lagH>1){let sh=0,ch=0; for(let i=0;i+lagH<odf.length&&i<lim;i++){sh+=odf[i]*odf[i+lagH];ch++;} if(ch>0)score+=0.3*(sh/ch);}
-    const prior=bpm>=70&&bpm<=180?1.2:bpm>=60&&bpm<=200?1.0:0.6;
-    candidates.push({bpm,score:score*prior});
+    if(lagH>1){let sh=0,ch=0;for(let i=0;i+lagH<odf.length&&i<lim;i++){sh+=odf[i]*odf[i+lagH];ch++;}if(ch>0)score+=0.3*(sh/ch);}
+    candidates.push({bpm,score:score*(bpm>=70&&bpm<=180?1.2:bpm>=60&&bpm<=200?1.0:0.6)});
   }
   candidates.sort((a,b)=>b.score-a.score);
   const topScore=candidates[0]?.score||1;
   const good=candidates.filter(c=>c.score>=topScore*0.7&&c.bpm>=60&&c.bpm<=200);
   good.sort((a,b)=>Math.abs(a.bpm-120)-Math.abs(b.bpm-120));
-  return Math.round(((good[0]||candidates[0]).bpm)*2)/2;
+  // Snap to nearest 0.15 BPM multiple (NBS format requirement)
+  const raw=(good[0]||candidates[0]).bpm;
+  return Math.round(raw/0.15)*0.15;
 }
 
-// ── Key detection
+// ── Key detection (Krumhansl-Schmuckler)
 function detectKey(buf){
   const mono=getMono(buf),sr=buf.sampleRate;
   const chroma=new Float32Array(12).fill(0);
@@ -939,7 +1058,7 @@ function detectKey(buf){
   for(let pos=0;pos+chunk<lim;pos+=step){
     for(let m=48;m<=84;m++){
       const f=440*Math.pow(2,(m-69)/12),ph=2*Math.PI*f/sr;
-      let re=0,im=0; for(let n=0;n<chunk;n++){re+=mono[pos+n]*Math.cos(ph*n);im+=mono[pos+n]*Math.sin(ph*n);}
+      let re=0,im=0;for(let n=0;n<chunk;n++){re+=mono[pos+n]*Math.cos(ph*n);im+=mono[pos+n]*Math.sin(ph*n);}
       chroma[m%12]+=Math.sqrt(re*re+im*im);
     }
   }
@@ -947,76 +1066,13 @@ function detectKey(buf){
   const maj=[6.35,2.23,3.48,2.33,4.38,4.09,2.52,5.19,2.39,3.66,2.29,2.88];
   const min=[6.33,2.68,3.52,5.38,2.60,3.53,2.54,4.75,3.98,2.69,3.34,3.17];
   let best='C',sc=-Infinity;
-  for(let t=0;t<12;t++) for(const[p,sfx]of[[maj,''],[min,'m']]){let s=0;for(let i=0;i<12;i++)s+=chroma[(i+t)%12]*p[i];if(s>sc){sc=s;best=notes[t]+sfx;}}
+  for(let t=0;t<12;t++)for(const[p,sfx]of[[maj,''],[min,'m']]){let s=0;for(let i=0;i<12;i++)s+=chroma[(i+t)%12]*p[i];if(s>sc){sc=s;best=notes[t]+sfx;}}
   return best;
 }
 
-// ── Spectrum analysis
-function analyseSpec(buf){
-  const mono=getMono(buf), sr=buf.sampleRate;
-  const N=2048;
-  // Sample multiple windows across the song for a more representative spectrum
-  const stepSec=10, maxSamples=6;
-  const step=Math.round(sr*stepSec);
-  let lo=0,mid=0,hi=0,tot=0,windows=0;
-  for(let start=Math.round(sr*5); start+N<mono.length && windows<maxSamples; start+=step,windows++){
-    const data=mono.subarray(start,start+N);
-    // Check this window has content
-    let rms=0; for(let i=0;i<N;i++) rms+=data[i]*data[i];
-    if(rms/N<0.0001) continue;
-    for(let k=1;k<N/2;k++){
-      const freq=k*sr/N; let re=0,im=0;
-      for(let n=0;n<Math.min(N,512);n++){const a=2*Math.PI*k*n/N;re+=data[n]*Math.cos(a);im+=data[n]*Math.sin(a);}
-      const mag=Math.sqrt(re*re+im*im);
-      if(freq<300)lo+=mag; else if(freq<2500)mid+=mag; else hi+=mag; tot+=mag;
-    }
-  }
-  if(!tot)return{lo:.33,mid:.33,hi:.33};
-  return{lo:lo/tot,mid:mid/tot,hi:hi/tot};
-}
-
-function pickInstrs(buf){
-  const{lo,mid,hi}=analyseSpec(buf);
-  const tot=lo+mid+hi+0.001;
-
-  // Spectral centroid score 0-1 (0=all bass, 1=all treble)
-  const centroid=(mid*0.4+hi*1.0)/tot;
-  // Warmth = how much bass+low-mid there is
-  const warmth=(lo+mid*0.5)/tot;
-  // Presence = upper-mid energy (where most melodic instruments live)
-  const presence=mid/tot;
-  // Brightness = treble energy
-  const brightness=hi/tot;
-
-  // ── Melody instrument
-  // Maps spectral character to how real note block composers choose:
-  // - Electronic/synth-heavy songs (high hi) → bit or pling
-  // - Bright/orchestral (moderate hi) → bell or xylophone
-  // - Warm/vocal (mid-dominant) → harp (the "piano" of note blocks)
-  // - Soft/atmospheric (lo-mid dominant) → flute or chime
-  let melody;
-  if(brightness>0.30)        melody='bell';       // very bright: bells cut through
-  else if(brightness>0.20)   melody='xylophone';  // bright: xylophone is crisp
-  else if(presence>0.48)     melody='harp';       // mid-heavy: harp is warm piano
-  else if(presence>0.35)     melody='banjo';      // moderate mid: banjo has pluck
-  else if(warmth>0.60)       melody='flute';      // warm/soft: flute is breathy
-  else                       melody='harp';       // default: harp is most versatile
-
-  // ── Harmony instrument
-  // Should complement melody — different enough to stand out
-  let harmony;
-  if(melody==='bell'||melody==='xylophone') harmony='harp';    // bright melody → warm harmony
-  else if(melody==='harp')                  harmony='guitar';  // warm melody → plucked harmony
-  else if(melody==='flute')                 harmony='chime';   // soft melody → bright harmony
-  else if(melody==='banjo')                 harmony='guitar';  // similar timbre for strumming
-  else                                      harmony='guitar';
-
-  // ── Bass instrument
-  // Didgeridoo for slower/atmospheric (lo-heavy), bass for rhythmic/defined
-  const bass = (lo>0.30 && centroid<0.35) ? 'didgeridoo' : 'bass';
-
-  return{melody, harmony, bass};
-}
+// Kept for backwards compat — use analyseSong instead
+function analyseSpec(buf){return analyseSong(buf);}
+function pickInstrs(buf){const s=analyseSong(buf);return{melody:s.melody,harmony:s.harmony,bass:s.bass};}
 
 // ── Filters
 function lpf(s,sr,fc){const a=1/(1+1/(2*Math.PI*(fc/sr)));const o=new Float32Array(s.length);o[0]=s[0];for(let i=1;i<s.length;i++)o[i]=a*o[i-1]+(1-a)*s[i];return o;}
@@ -1026,79 +1082,87 @@ function toAB(data,sr){const b=audioCtx.createBuffer(1,data.length,sr);b.getChan
 
 // ── YIN pitch detector
 function yin(buf,sr){
-  const N=buf.length, W=Math.floor(N/2);
+  const N=buf.length,W=Math.floor(N/2);
   const df=new Float32Array(W);
-  for(let tau=1;tau<W;tau++) for(let i=0;i<W;i++){const d=buf[i]-buf[i+tau]; df[tau]+=d*d;}
-  const cmnd=new Float32Array(W); cmnd[0]=1; let s=0;
-  for(let tau=1;tau<W;tau++){s+=df[tau]; cmnd[tau]=df[tau]/((s/tau)||1);}
+  for(let tau=1;tau<W;tau++)for(let i=0;i<W;i++){const d=buf[i]-buf[i+tau];df[tau]+=d*d;}
+  const cmnd=new Float32Array(W);cmnd[0]=1;let s=0;
+  for(let tau=1;tau<W;tau++){s+=df[tau];cmnd[tau]=df[tau]/((s/tau)||1);}
   let tau=-1;
-  for(let t=2;t<W;t++){if(cmnd[t]<0.12){while(t+1<W&&cmnd[t+1]<cmnd[t])t++; tau=t; break;}}
-  if(tau<2){let mn=Infinity; for(let t=2;t<W;t++)if(cmnd[t]<mn){mn=cmnd[t];tau=t;}}
-  if(tau<2) return -1;
+  for(let t=2;t<W;t++){if(cmnd[t]<0.12){while(t+1<W&&cmnd[t+1]<cmnd[t])t++;tau=t;break;}}
+  if(tau<2){let mn=Infinity;for(let t=2;t<W;t++)if(cmnd[t]<mn){mn=cmnd[t];tau=t;}}
+  if(tau<2)return -1;
   const a=cmnd[tau-1],b2=cmnd[tau],c2=tau+1<W?cmnd[tau+1]:b2;
-  const den=a+c2-2*b2; const r=den!==0?tau+(c2-a)/(2*den):tau;
+  const den=a+c2-2*b2;const r=den!==0?tau+(c2-a)/(2*den):tau;
   return r>1?sr/r:-1;
 }
 
-// ── Track a frequency band with onset/offset detection
-async function trackBand(abuf, sr, hopSec, smoothN, midiLo, midiHi, autoVelThresh, onProgress){
+// ── Pitch tracker with onset/offset detection and progress callback
+// Produces note segments with precise start time and duration
+async function trackBand(abuf,sr,hopSec,smoothN,midiLo,midiHi,autoVelThresh,onProgress){
   autoVelThresh=autoVelThresh!==undefined?autoVelThresh:velThreshold;
   const mono=abuf.getChannelData(0);
-  const fSz=Math.round(sr*0.046), hop=Math.round(sr*hopSec);
-  const segments=[]; let prev=-1, cnt=0, segStart=0, segMaxRms=0, frame=0;
+  const fSz=Math.round(sr*0.046),hop=Math.round(sr*hopSec);
+  const segments=[];let prev=-1,cnt=0,segStart=0,segMaxRms=0,frame=0;
   for(let pos=0;pos+fSz<mono.length;pos+=hop,frame++){
-    if(frame%50===0) await sleep(0);
+    if(frame%50===0){
+      await sleep(0);
+      if(onProgress)onProgress(pos/mono.length);
+    }
     const f=mono.slice(pos,pos+fSz);
     const rms=Math.sqrt(f.reduce((s,v)=>s+v*v,0)/f.length);
     const t=pos/sr;
     if(rms<autoVelThresh){
-      if(prev>0&&cnt>=smoothN) segments.push({timeSec:segStart,durSec:t-segStart,midi:prev,vel:Math.min(1,segMaxRms*6)});
-      prev=-1; cnt=0; segMaxRms=0; continue;
+      if(prev>0&&cnt>=smoothN)segments.push({timeSec:segStart,durSec:t-segStart,midi:prev,vel:Math.min(1,segMaxRms*6)});
+      prev=-1;cnt=0;segMaxRms=0;continue;
     }
     const freq=yin(f,sr);
     if(freq<=0||freq>6000){
-      if(prev>0&&cnt>=smoothN) segments.push({timeSec:segStart,durSec:t-segStart,midi:prev,vel:Math.min(1,segMaxRms*6)});
-      prev=-1; cnt=0; segMaxRms=0; continue;
+      if(prev>0&&cnt>=smoothN)segments.push({timeSec:segStart,durSec:t-segStart,midi:prev,vel:Math.min(1,segMaxRms*6)});
+      prev=-1;cnt=0;segMaxRms=0;continue;
     }
     let midi=Math.round(69+12*Math.log2(freq/440));
-    if(midi<midiLo||midi>midiHi) continue;
-    while(midi<NB_MIN)midi+=12; while(midi>NB_MAX)midi-=12;
+    if(midi<midiLo||midi>midiHi)continue;
+    while(midi<NB_MIN)midi+=12;while(midi>NB_MAX)midi-=12;
     midi=Math.max(NB_MIN,Math.min(NB_MAX,midi));
-    if(midi===prev){ cnt++; segMaxRms=Math.max(segMaxRms,rms); }
-    else {
-      if(prev>0&&cnt>=smoothN) segments.push({timeSec:segStart,durSec:t-segStart,midi:prev,vel:Math.min(1,segMaxRms*6)});
-      prev=midi; cnt=1; segStart=t; segMaxRms=rms;
+    if(midi===prev){cnt++;segMaxRms=Math.max(segMaxRms,rms);}
+    else{
+      if(prev>0&&cnt>=smoothN)segments.push({timeSec:segStart,durSec:t-segStart,midi:prev,vel:Math.min(1,segMaxRms*6)});
+      prev=midi;cnt=1;segStart=t;segMaxRms=rms;
     }
   }
-  if(prev>0&&cnt>=smoothN) segments.push({timeSec:segStart,durSec:(mono.length/sr)-segStart,midi:prev,vel:Math.min(1,segMaxRms*6)});
-  return segments.filter(n=>n.durSec>=hopSec*0.6);
+  if(prev>0&&cnt>=smoothN)segments.push({timeSec:segStart,durSec:(mono.length/sr)-segStart,midi:prev,vel:Math.min(1,segMaxRms*6)});
+  // Allow notes as short as 1 hop — fills gaps for fast songs
+  return segments.filter(n=>n.durSec>=hopSec*0.5);
 }
 
-// ── Quantise with auto-calibrated subdivision
-function quantiseAll(layers, bpm, subdiv){
+// ── Quantise notes to BPM grid
+// Key insight: use the note's actual detected duration to set durTicks
+// This is what makes long notes sound held and short notes staccato
+function quantiseAll(layers,bpm,subdiv){
   const secPerBeat=60/bpm;
   const tickSec=secPerBeat/subdiv;
-  const seen=new Set(), result=[];
-  for(const{notes, instr, family} of layers){
+  const seen=new Set(),result=[];
+  for(const{notes,instr,family}of layers){
     const famName=family||instr;
-    if(famName==='none') continue;
+    if(famName==='none')continue;
     for(const n of notes){
       const startTick=Math.round(n.timeSec/tickSec);
-      // Cap duration: at most 1 beat (subdiv ticks) to keep notes punchy
-      // This prevents held notes from bleeding into the next note and creating mud
-      const durTicks=Math.max(1,Math.min(subdiv, Math.round(n.durSec/tickSec)));
-      const variant=familyVariant(famName, n.midi);
+      // Duration: map actual note duration to grid
+      // Minimum 1 tick, maximum 1 full beat (subdiv ticks)
+      // This prevents notes bleeding into the next measure
+      const durTicks=Math.max(1,Math.min(subdiv,Math.round(n.durSec/tickSec)));
+      const variant=familyVariant(famName,n.midi);
       const k=`${startTick}|${variant.instr}|${variant.midi}`;
       if(!seen.has(k)){
         seen.add(k);
-        result.push({...n, tick:startTick, durTicks, instr:variant.instr, midi:variant.midi, family:famName});
+        result.push({...n,tick:startTick,durTicks,instr:variant.instr,midi:variant.midi,family:famName});
       }
     }
   }
   result.sort((a,b)=>a.tick-b.tick);
-  // Soft cap: allow up to 3 notes per tick (chords)
+  // Allow up to 2 notes per tick (one per layer typically)
   const tc={};
-  return result.filter(n=>{tc[n.tick]=(tc[n.tick]||0)+1; return tc[n.tick]<=3;});
+  return result.filter(n=>{tc[n.tick]=(tc[n.tick]||0)+1;return tc[n.tick]<=2;});
 }
 
 // ── Load MC samples from server
@@ -1289,53 +1353,69 @@ async function doConvert(){
   try{
     await stg('s1',8,'Decoding audio');await sleep(80);
 
-    await stg('s2',16,'BPM: '+Math.round(bpm));await sleep(60);
 
-    // Auto-pick instruments from spectrum + set cal for this song
+    // Analyse song character — genre detection drives instrument and grid choices
+    await stg('s2',16,'Analysing song...');
+    const songAnalysis=analyseSong(srcBuf);
+    cal={subdiv:songAnalysis.subdiv};
     const sr=srcBuf.sampleRate;
-    const{melody,harmony,bass}=getInstrs(); // uses dropdown values (auto-set by previewInstrs)
-    cal={subdiv:4}; // 1/16th note grid
+
+    // Auto-set instrument dropdowns
+    const selM=document.getElementById('instrMelody');
+    const selH=document.getElementById('instrHarmony');
+    const selB=document.getElementById('instrBass');
+    if(selM)setSelectVal(selM,songAnalysis.melody);
+    if(selH)setSelectVal(selH,songAnalysis.harmony);
+    if(selB)setSelectVal(selB,songAnalysis.bass);
+    const dInstrEl=document.getElementById('dInstr');
+    if(dInstrEl){
+      const genre=songAnalysis.isHeavy?'ROCK/HEAVY':songAnalysis.isElectronic?'ELECTRONIC':
+        songAnalysis.isOrchestral?'ORCHESTRAL':songAnalysis.isSoft?'SOFT/AMBIENT':
+        songAnalysis.isBright?'BRIGHT/POP':'WARM/BALANCED';
+      dInstrEl.textContent=genre+' → '+songAnalysis.melody+'/'+songAnalysis.harmony+'/'+songAnalysis.bass;
+    }
+    const{melody,harmony,bass}=getInstrs();
+    await sleep(40);
 
     await stg('s3',26,'Separating frequency bands');
     const mono=getMono(srcBuf);
-    const hiB=toAB(hpf(mono,sr,650),sr);
-    const miB=toAB(bpf(mono,sr,160,650),sr);
-    const loB=toAB(lpf(mono,sr,200),sr);
-    await sleep(40);
+    const meldCutoff=songAnalysis.isHeavy?500:650;
+    const hiB=toAB(hpf(mono,sr,meldCutoff),sr);
+    const miB=toAB(bpf(mono,sr,120,meldCutoff),sr);
+    const loB=toAB(lpf(mono,sr,180),sr);
+    await sleep(30);
 
-    // Hop and smoothing based on BPM — faster songs need finer tracking
-    const hopSec = bpm>130 ? 0.02 : bpm>90 ? 0.025 : 0.03;
-    const smoothN = bpm>130 ? 1 : 2;
+    const hopSec=songAnalysis.isHeavy?0.035:bpm>130?0.020:0.025;
+    const smoothN=songAnalysis.isHeavy?1:bpm>130?1:2;
 
     await stg('s4',38,'Pitch tracking melody...');
-    const totalFrames=hiB.getChannelData(0).length;
     const hiN=await trackBand(hiB,sr,hopSec,smoothN,52,82,velThreshold,pct=>{
-      const overall=38+pct*16; // s4 goes from 38% to 54%
-      $('pFill').style.width=overall+'%';
-      $('pPct').textContent=Math.round(overall)+'%';
+      $('pFill').style.width=(38+pct*16)+'%';
+      $('pPct').textContent=Math.round(38+pct*16)+'%';
     });
 
     await stg('s5',54,'Pitch tracking harmony & bass...');
-    const miN=noteDensity==='minimal'?[]:await trackBand(miB,sr,hopSec*1.5,smoothN,45,66,velThreshold,pct=>{
-      const overall=54+pct*8;
-      $('pFill').style.width=overall+'%';
-      $('pPct').textContent=Math.round(overall)+'%';
+    const miN=noteDensity==='minimal'?[]:await trackBand(miB,sr,hopSec*1.4,smoothN,45,66,velThreshold,pct=>{
+      $('pFill').style.width=(54+pct*7)+'%';
+      $('pPct').textContent=Math.round(54+pct*7)+'%';
     });
-    const loN=noteDensity==='minimal'?[]:await trackBand(loB,sr,hopSec*2.5,smoothN+1,28,52,velThreshold*0.7,pct=>{
-      const overall=62+pct*4;
-      $('pFill').style.width=overall+'%';
-      $('pPct').textContent=Math.round(overall)+'%';
+    const loN=noteDensity==='minimal'?[]:await trackBand(loB,sr,hopSec*2.2,smoothN+1,28,52,velThreshold*0.6,pct=>{
+      $('pFill').style.width=(61+pct*5)+'%';
+      $('pPct').textContent=Math.round(61+pct*5)+'%';
     });
 
-    await stg('s6',64,'Quantising to BPM grid');
+    await stg('s6',66,'Quantising to grid (1/'+{2:'8th',4:'16th'}[cal.subdiv]+' notes)');
     hiN.forEach(n=>n.instr=melody);
     miN.forEach(n=>n.instr=harmony);
     loN.forEach(n=>n.instr=bass);
     allNotes=quantiseAll([
-      {notes:hiN, instr:melody,  family:melody},
-      {notes:miN, instr:harmony, family:harmony},
-      {notes:loN, instr:bass,    family:bass},
-    ], bpm, cal.subdiv);
+      {notes:hiN,instr:melody, family:melody},
+      {notes:miN,instr:harmony,family:harmony},
+      {notes:loN,instr:bass,   family:bass},
+    ],bpm,cal.subdiv);
+
+
+
     await sleep(40);
     await stg('s7',68,'Loading Minecraft sounds');
     await loadMCSamples([...new Set(allNotes.map(n=>n.instr))]);
