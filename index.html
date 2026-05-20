@@ -1495,11 +1495,15 @@ function encodeMP3(audioBuf){
 }
 
 // ── Main convert
+// ── Main convert
 async function doConvert(){
+  ensureCtx(); // <-- THIS IS THE FIX
+
   if(!srcBuf&&!isMidiMode)return showErr('No audio loaded.');
   hideErr();$('btnGo').disabled=true;
   $('pg').classList.add('on');$('res').classList.remove('on');
   allNotes=[];
+  
   // MIDI shortcut — skip ALL pitch detection stages entirely
   if(isMidiMode&&midiSrcNotes&&midiSrcNotes.length>0){
     try{
@@ -1542,11 +1546,11 @@ async function doConvert(){
     }
     return;
   }
+  
   const bpm=useBpm*(speedPct/100);
   let stopTicker=null, cal={subdiv:4};
   try{
     await stg('s1',8,'Decoding audio');await sleep(80);
-
 
     // Analyse song character — genre detection drives instrument and grid choices
     await stg('s2',16,'Analysing song...');
@@ -1608,21 +1612,22 @@ async function doConvert(){
       {notes:loN,instr:bass,   family:bass},
     ],bpm,cal.subdiv);
 
-
-
     await sleep(40);
     await stg('s7',68,'Loading Minecraft sounds');
     await loadMCSamples([...new Set(allNotes.map(n=>n.instr))]);
     await sleep(30);
+    
     // s8: rendering — this takes longest, show animated ticker
     await stg('s8',70,'Synthesising '+allNotes.length+' notes...');
     $('pFill').classList.add('active');
+    
     // Estimate render time: ~2s per minute of audio as baseline, min 8s, scales with note count
     const estRenderMs=Math.max(8000, srcBuf.duration*2000 + allNotes.length*15);
     stopTicker=startProgressTicker(70,90,estRenderMs);
     rendBuf=await renderAudio(allNotes,srcBuf.duration,bpm,cal.subdiv);
     if(stopTicker){stopTicker();stopTicker=null;}
     $('pFill').classList.remove('active');
+    
     // s9: MP3 encoding
     await stg('s9',91,'Encoding MP3...');
     stopTicker=startProgressTicker(91,98,3000);
@@ -1630,6 +1635,7 @@ async function doConvert(){
     mp3Blob=encodeMP3(rendBuf);
     if(stopTicker){stopTicker();stopTicker=null;}
     nbsBlob=buildNbs(allNotes,bpm,cal.subdiv);
+    
     $('pFill').style.width='100%';$('pLbl').textContent='Done!';$('pPct').textContent='100%';
     document.querySelectorAll('.st').forEach(s=>{s.classList.remove('a');s.classList.add('d');});
     await sleep(300);
@@ -1892,6 +1898,9 @@ let isMidiMode=false, midiSrcNotes=[];
 
 async function loadMidiFile(f){
   if(!f)return; hideErr();
+  
+  ensureCtx(); // <-- THIS IS THE FIX
+  
   srcName=f.name.replace(/\.midi?$/i,'');
   const chipMidi=document.getElementById('chipMidi');
   const cnMidi=document.getElementById('cnMidi');
