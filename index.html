@@ -127,7 +127,7 @@ body::before{
   position:relative;
   box-shadow:2px 2px 0 rgba(0,0,0,0.4);
 }
-.panel-title{font-family:'Press Start 2P',monospace;font-size:9px;color:#CCC;margin-bottom:14px;letter-spacing:1px;display:flex;align-items:center;gap:8px;text-shadow:1px 1px 0 rgba(0,0,0,0.8)}
+.panel-title{font-family:'Press Start 2P',monospace;font-size:9px;color:#2A2A2A;margin-bottom:14px;letter-spacing:1px;display:flex;align-items:center;gap:8px;text-shadow:none}
 .panel-title::before{
   content:'';display:inline-block;width:10px;height:10px;
   background:var(--gold);
@@ -241,7 +241,7 @@ body::before{
   background:var(--panel);
   border-top:2px solid #888;border-left:2px solid #888;
   border-bottom:2px solid #333;border-right:2px solid #333;
-  color:var(--inv-text);font-family:'VT323',monospace;font-size:16px;
+  color:#1A1A1A;font-family:'VT323',monospace;font-size:16px;
   padding:6px 8px;outline:none;cursor:pointer;
 }
 .mc-select:focus{border-color:var(--grass)}
@@ -251,7 +251,7 @@ body::before{
 .qb{
   flex:1;padding:9px 4px;text-align:center;
   font-family:'Press Start 2P',monospace;font-size:7px;
-  cursor:pointer;color:var(--gray);line-height:1.8;letter-spacing:0.5px;
+  cursor:pointer;color:#333;line-height:1.8;letter-spacing:0.5px;
   background:var(--stone);
   border-top:2px solid #C0C0C0;border-left:2px solid #C0C0C0;
   border-bottom:2px solid #4A4A4A;border-right:2px solid #4A4A4A;
@@ -450,7 +450,7 @@ canvas{display:block;width:100%}
 
 /* Slider row in light mode */
 .slider-row{margin-top:10px}
-.slider-head{display:flex;justify-content:space-between;font-size:13px;color:var(--inv-label);margin-bottom:5px}
+.slider-head{display:flex;justify-content:space-between;font-size:13px;color:#333;margin-bottom:5px}
 .slider-head span:last-child{color:var(--green);font-family:'Press Start 2P',monospace;font-size:9px}
 input[type=range].mc-sl{
   width:100%;-webkit-appearance:none;height:6px;
@@ -467,7 +467,7 @@ input[type=range].mc-sl::-webkit-slider-thumb{
 }
 
 /* BPM label in light mode */
-.bpm-label{font-family:'Press Start 2P',monospace;font-size:8px;color:var(--gray);white-space:nowrap}
+.bpm-label{font-family:'Press Start 2P',monospace;font-size:8px;color:#333;white-space:nowrap}
 .bpm-num{
   background:var(--inv-slot);
   border-top:2px solid #373737;border-left:2px solid #373737;
@@ -567,10 +567,10 @@ input[type=range].mc-sl::-webkit-slider-thumb{
   </div>
 
   <div id="instrWrap" style="display:none">
-    <div class="il" style="color:var(--inv-label);font-size:12px;margin-bottom:8px">AUTO-DETECTED — tap 🔊 to preview</div>
+    <div class="il" style="color:#333;font-size:12px;margin-bottom:8px">AUTO-DETECTED — tap 🔊 to preview</div>
     <div style="display:flex;flex-direction:column;gap:7px;margin-top:6px">
       <div style="display:flex;align-items:center;gap:6px">
-        <span style="font-size:13px;color:#1A5C00;width:60px;flex-shrink:0;font-family:'Press Start 2P',monospace;font-size:8px">MELODY</span>
+        <span style="font-size:13px;color:#2A2A2A;width:60px;flex-shrink:0;font-family:'Press Start 2P',monospace;font-size:8px">MELODY</span>
         <button onclick="previewInstr('instrMelody')" style="background:var(--inv-dark);border-top:2px solid var(--inv-light);border-left:2px solid var(--inv-light);border-bottom:2px solid #373737;border-right:2px solid #373737;font-size:12px;padding:4px 8px;cursor:pointer;flex-shrink:0;box-shadow:1px 1px 0 rgba(0,0,0,0.3)">🔊</button>
         <select id="instrMelody" class="mc-select">
           <option value="harp">Harp</option>
@@ -587,7 +587,7 @@ input[type=range].mc-sl::-webkit-slider-thumb{
         </select>
       </div>
       <div style="display:flex;align-items:center;gap:6px">
-        <span style="font-size:13px;color:#0A3A5C;width:60px;flex-shrink:0;font-family:'Press Start 2P',monospace;font-size:8px">HARMONY</span>
+        <span style="font-size:13px;color:#2A2A2A;width:60px;flex-shrink:0;font-family:'Press Start 2P',monospace;font-size:8px">HARMONY</span>
         <button onclick="previewInstr('instrHarmony')" style="background:var(--inv-dark);border-top:2px solid var(--inv-light);border-left:2px solid var(--inv-light);border-bottom:2px solid #373737;border-right:2px solid #373737;font-size:12px;padding:4px 8px;cursor:pointer;flex-shrink:0;box-shadow:1px 1px 0 rgba(0,0,0,0.3)">🔊</button>
         <select id="instrHarmony" class="mc-select">
           <option value="guitar">Guitar</option>
@@ -605,7 +605,7 @@ input[type=range].mc-sl::-webkit-slider-thumb{
         </select>
       </div>
       <div style="display:flex;align-items:center;gap:6px">
-        <span style="font-size:13px;color:#5C3A00;width:60px;flex-shrink:0;font-family:'Press Start 2P',monospace;font-size:8px">BASS</span>
+        <span style="font-size:13px;color:#2A2A2A;width:60px;flex-shrink:0;font-family:'Press Start 2P',monospace;font-size:8px">BASS</span>
         <button onclick="previewInstr('instrBass')" style="background:var(--inv-dark);border-top:2px solid var(--inv-light);border-left:2px solid var(--inv-light);border-bottom:2px solid #373737;border-right:2px solid #373737;font-size:12px;padding:4px 8px;cursor:pointer;flex-shrink:0;box-shadow:1px 1px 0 rgba(0,0,0,0.3)">🔊</button>
         <select id="instrBass" class="mc-select">
           <option value="bass">Bass</option>
@@ -1643,33 +1643,107 @@ async function doConvert(){
 }
 
 // ── NBS builder
-function buildNbs(notes,bpm,subdiv){ subdiv=subdiv||4;  // already set
+function buildNbs(notes,bpm,subdiv){
+  // NBS v5 format — https://opennbs.org/nbs
+  // IMPORTANT: Every string is (uint32 length)(bytes). 4 strings in header: name,author,orig,desc.
+  subdiv=subdiv||4;
   const imap=NBS_IDS;
-  const ticks={};for(const n of notes)(ticks[n.tick]=ticks[n.tick]||[]).push(n);
-  const maxTick=notes.length?Math.max(...notes.map(n=>n.tick)):0;
-  const layers=Math.max(1,...Object.values(ticks).map(a=>a.length));
-  const enc=new TextEncoder(),parts=[];
-  const ws=s=>{const b=enc.encode(s),l=new Uint8Array(4);new DataView(l.buffer).setUint32(0,b.length,true);return[l,b];};
-  const wu=(v,n=2)=>{const a=new Uint8Array(n);new DataView(a.buffer)['setUint'+(n*8)](0,v,true);return[a];};
-  parts.push(...wu(0,2),...wu(5,1),...wu(16,1));
-  parts.push(...wu(maxTick,2),...wu(layers,2));
-  parts.push(...ws(srcName||'NoteForge'),...ws('NoteForge'),...ws(''));
-  const tps=Math.round(100/((60/bpm)/subdiv));
-  parts.push(...wu(Math.max(1,Math.min(65535,tps)),2));
-  for(let i=0;i<9;i++)parts.push(...wu(0,1));
-  parts.push(...wu(0,4),...wu(0,4),...wu(0,4),...wu(0,2),...wu(0,4),...wu(0,4));
-  let pt=-1;
-  for(const ts of Object.keys(ticks).sort((a,b)=>+a-+b)){
-    const t=+ts;parts.push(...wu(t-pt,2));pt=t;
-    let pl=-1;
-    ticks[ts].forEach((n,li)=>{parts.push(...wu(li-pl,2));pl=li;parts.push(...wu(imap[n.instr]??0,1),...wu(n.midi-33,1),...wu(Math.round((n.vel||.8)*100),1),...wu(100,1),...wu(0,2));});
-    parts.push(...wu(0,2));
+
+  // Group notes by tick, then by instrument (each instr gets its own layer)
+  // This matches how real NBS songs are structured in Note Block Studio
+  const instrOrder=[...new Set(notes.map(n=>n.instr))];
+  const instrLayer={}; instrOrder.forEach((ins,i)=>instrLayer[ins]=i);
+  const numLayers=Math.max(1,instrOrder.length);
+
+  // Build tick→layer→note map
+  const tickMap={};
+  for(const n of notes){
+    const layer=instrLayer[n.instr]??0;
+    if(!tickMap[n.tick]) tickMap[n.tick]={};
+    // Only keep one note per layer per tick (highest velocity wins)
+    const existing=tickMap[n.tick][layer];
+    if(!existing||n.vel>existing.vel) tickMap[n.tick][layer]=n;
   }
-  parts.push(...wu(0,2));
-  for(let i=0;i<layers;i++){parts.push(...ws('Layer '+(i+1)),...wu(0,1),...wu(100,1),...wu(100,1));}
-  parts.push(...wu(0,1));
-  const total=parts.reduce((s,a)=>s+a.length,0);
-  const out=new Uint8Array(total);let off=0;
+  const maxTick=notes.length?Math.max(...notes.map(n=>n.tick)):0;
+
+  // NBS tempo: ticks per second * 100
+  // With subdiv subdivisions per beat at bpm: tps = (bpm/60)*subdiv
+  const tps=Math.round((bpm/60)*subdiv*100); // stored as t/s * 100
+
+  const enc=new TextEncoder();
+  const parts=[];
+  const wb1=(v)=>{const a=new Uint8Array(1);a[0]=v&0xFF;return a;};
+  const wb2=(v)=>{const a=new Uint8Array(2);new DataView(a.buffer).setUint16(0,v&0xFFFF,true);return a;};
+  const wb4=(v)=>{const a=new Uint8Array(4);new DataView(a.buffer).setUint32(0,v>>>0,true);return a;};
+  const wbs=(s)=>{const b=enc.encode(s||'');return [wb4(b.length),b];};
+
+  // ── Header
+  parts.push(wb2(0));           // 0x0000 = new format marker
+  parts.push(wb1(5));           // version 5
+  parts.push(wb1(16));          // 16 vanilla instruments
+  parts.push(wb2(maxTick));     // song length in ticks
+  parts.push(wb2(numLayers));   // number of layers
+
+  // 4 strings: name, author, orig_author, description
+  parts.push(...wbs(srcName||'NoteForge Song'));
+  parts.push(...wbs('NoteForge'));
+  parts.push(...wbs(''));        // orig_author
+  parts.push(...wbs(''));        // description (MUST be here, was missing before!)
+
+  parts.push(wb2(Math.max(1,Math.min(65535,tps))));  // tempo (t/s * 100)
+  parts.push(wb1(0));           // auto_save off
+  parts.push(wb1(10));          // auto_save_duration (minutes)
+  parts.push(wb1(4));           // time_signature (4/4)
+  parts.push(wb4(0));           // minutes_spent
+  parts.push(wb4(0));           // left_clicks
+  parts.push(wb4(0));           // right_clicks
+  parts.push(wb4(notes.length)); // blocks_added
+  parts.push(wb4(0));           // blocks_removed
+  parts.push(...wbs(''));        // midi_import_name
+  // v4+ loop fields
+  parts.push(wb1(0));           // loop_on
+  parts.push(wb1(0));           // max_loop_count
+  parts.push(wb2(0));           // loop_start_tick
+
+  // ── Note data: iterate ticks in order
+  const sortedTicks=Object.keys(tickMap).map(Number).sort((a,b)=>a-b);
+  let prevTick=-1;
+  for(const tick of sortedTicks){
+    parts.push(wb2(tick-prevTick));  // jump to this tick
+    prevTick=tick;
+    const layerMap=tickMap[tick];
+    const layerNums=Object.keys(layerMap).map(Number).sort((a,b)=>a-b);
+    let prevLayer=-1;
+    for(const layer of layerNums){
+      const n=layerMap[layer];
+      parts.push(wb2(layer-prevLayer)); // jump to this layer
+      prevLayer=layer;
+      const instrId=imap[n.instr]??0;
+      const key=Math.max(0,Math.min(87,n.midi-33)); // NBS key: midi-33, range 0-87
+      const vel=Math.max(0,Math.min(100,Math.round((n.vel||0.8)*100)));
+      parts.push(wb1(instrId));   // instrument
+      parts.push(wb1(key));       // key (0=A0, 33=F#3, 45=F#4 center, 57=F#5)
+      parts.push(wb1(vel));       // velocity (0-100)
+      parts.push(wb2(100));       // panning (100=center)
+      parts.push(wb2(0));         // fine pitch (cents * 100)
+    }
+    parts.push(wb2(0));           // end of this tick's layers
+  }
+  parts.push(wb2(0));             // end of note data
+
+  // ── Layer data
+  for(let i=0;i<numLayers;i++){
+    const instrName=instrOrder[i]||'Layer '+(i+1);
+    parts.push(...wbs(instrName));  // layer name
+    parts.push(wb1(0));             // layer lock (0=unlocked)
+    parts.push(wb1(100));           // layer volume (100%)
+    parts.push(wb2(100));           // layer stereo (100=center) -- v2+
+  }
+  parts.push(wb1(0));  // custom instruments count (none)
+
+  // ── Assemble
+  let total=0; for(const p of parts) total+=p.length;
+  const out=new Uint8Array(total); let off=0;
   for(const p of parts){out.set(p,off);off+=p.length;}
   return new Blob([out],{type:'application/octet-stream'});
 }
