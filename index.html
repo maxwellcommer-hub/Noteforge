@@ -44,41 +44,42 @@
 
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;image-rendering:pixelated}
 body{
-  background:var(--sky);
+  background:#000;
   color:var(--inv-text);
   font-family:'VT323',monospace;
   font-size:18px;
   min-height:100vh;
   overflow-x:hidden;
-  /* Sky gradient background */
-  background:linear-gradient(180deg,#87CEEB 0%,#B5DCF0 40%,#C8E8F8 60%,#D4EEF4 100%);
 }
 
-/* ── Minecraft daytime sky with clouds ── */
+/* ── Twinkling starfield ── */
 body::before{
   content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   background:
-    /* Pixel clouds */
-    radial-gradient(ellipse 80px 30px at 15% 20%, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 70%),
-    radial-gradient(ellipse 120px 40px at 18% 20%, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0) 70%),
-    radial-gradient(ellipse 60px 25px at 55% 12%, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 70%),
-    radial-gradient(ellipse 100px 35px at 58% 12%, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0) 70%),
-    radial-gradient(ellipse 70px 28px at 80% 25%, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0) 70%);
-  animation: cloudDrift 60s linear infinite;
+    radial-gradient(1px 1px at 8%  12%, #fff 0%, transparent 100%),
+    radial-gradient(1px 1px at 17% 44%, #fff 0%, transparent 100%),
+    radial-gradient(1px 1px at 26%  7%, #fff 0%, transparent 100%),
+    radial-gradient(1px 1px at 33% 67%, #fff 0%, transparent 100%),
+    radial-gradient(1px 1px at 41% 29%, #fff 0%, transparent 100%),
+    radial-gradient(1px 1px at 49% 82%, #fff 0%, transparent 100%),
+    radial-gradient(1px 1px at 54% 18%, #fff 0%, transparent 100%),
+    radial-gradient(1px 1px at 61% 53%, #fff 0%, transparent 100%),
+    radial-gradient(1px 1px at 68%  3%, #fff 0%, transparent 100%),
+    radial-gradient(1px 1px at 73% 71%, #fff 0%, transparent 100%),
+    radial-gradient(1px 1px at 79% 38%, #fff 0%, transparent 100%),
+    radial-gradient(1px 1px at 85% 90%, #fff 0%, transparent 100%),
+    radial-gradient(1px 1px at 91% 22%, #fff 0%, transparent 100%),
+    radial-gradient(1px 1px at 96% 58%, #fff 0%, transparent 100%),
+    radial-gradient(2px 2px at 12% 78%, rgba(255,255,255,0.8) 0%, transparent 100%),
+    radial-gradient(2px 2px at 38% 91%, rgba(255,255,255,0.7) 0%, transparent 100%),
+    radial-gradient(2px 2px at 64% 46%, rgba(255,255,255,0.8) 0%, transparent 100%),
+    radial-gradient(2px 2px at 88% 14%, rgba(255,255,255,0.9) 0%, transparent 100%);
+  animation:starTwinkle 4s ease-in-out infinite alternate;
 }
-@keyframes cloudDrift{
-  0%{background-position:0 0}
-  100%{background-position:200px 0}
-}
-
-/* ── Grass strip at bottom of screen ── */
-body::after{
-  content:'';position:fixed;bottom:0;left:0;right:0;height:48px;pointer-events:none;z-index:0;
-  background:
-    /* Grass top */
-    linear-gradient(180deg,var(--grass2) 0px,var(--grass2) 16px,var(--grass) 16px,var(--grass) 28px,var(--dirt) 28px,var(--dirt2) 100%);
-  /* Pixel grass texture */
-  image-rendering:pixelated;
+@keyframes starTwinkle{
+  0%{opacity:1}
+  50%{opacity:0.6}
+  100%{opacity:1}
 }
 
 /* ── Pixel block border utility ── */
@@ -93,17 +94,7 @@ body::after{
 
 /* ── Header ── */
 .hdr{text-align:center;margin-bottom:28px;padding:20px 0 16px}
-.logo{
-  font-family:'Press Start 2P',monospace;
-  font-size:clamp(16px,4vw,28px);
-  color:var(--green);
-  text-shadow:
-    3px 3px 0 #004400,
-    0 0 20px rgba(85,255,85,0.5);
-  letter-spacing:2px;
-  line-height:1.4;
-  margin-bottom:8px;
-}
+.logo{font-family:'Press Start 2P',monospace;font-size:clamp(1.1rem,4vw,1.8rem);color:#E0E0E0;text-shadow:2px 2px 0 #000,0 0 20px rgba(255,255,255,0.1);line-height:1.4;margin-bottom:8px;letter-spacing:3px}
 .logo span{color:var(--gold);}
 .sub{
   font-size:14px;
@@ -136,16 +127,7 @@ body::after{
   position:relative;
   box-shadow:2px 2px 0 rgba(0,0,0,0.4);
 }
-.panel-title{
-  font-family:'Press Start 2P',monospace;
-  font-size:9px;
-  color:var(--gold);
-  margin-bottom:14px;
-  letter-spacing:1px;
-  display:flex;
-  align-items:center;
-  gap:8px;
-}
+.panel-title{font-family:'Press Start 2P',monospace;font-size:9px;color:#CCC;margin-bottom:14px;letter-spacing:1px;display:flex;align-items:center;gap:8px;text-shadow:1px 1px 0 rgba(0,0,0,0.8)}
 .panel-title::before{
   content:'';display:inline-block;width:10px;height:10px;
   background:var(--gold);
@@ -439,59 +421,7 @@ canvas{display:block;width:100%}
 .ft{text-align:center;margin-top:24px;font-size:13px;color:var(--dgray)}
 .ft a{color:var(--aqua)}
 
-/* ── Minecraft rendering animation ── */
-.mc-render-anim{display:none;text-align:center;padding:16px;margin:10px 0}
-.mc-render-anim.on{display:block}
-.steve-wrap{position:relative;height:64px;overflow:hidden;margin-bottom:8px}
-.steve{
-  display:inline-block;
-  font-size:40px;
-  animation:steveWalk 0.5s steps(2) infinite;
-  position:relative;
-}
-@keyframes steveWalk{
-  0%{transform:translateX(-20px) scaleX(1)}
-  25%{transform:translateX(0px) scaleX(1)}
-  50%{transform:translateX(20px) scaleX(1)}
-  75%{transform:translateX(0px) scaleX(1)}
-  100%{transform:translateX(-20px) scaleX(1)}
-}
-.pickaxe{
-  display:inline-block;
-  font-size:28px;
-  animation:pickaxeSwing 0.4s ease-in-out infinite alternate;
-  transform-origin:bottom right;
-}
-@keyframes pickaxeSwing{
-  from{transform:rotate(-30deg)}
-  to{transform:rotate(30deg)}
-}
-.mc-particles{
-  display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin-top:6px;
-}
-.mc-particle{
-  width:8px;height:8px;
-  animation:particleFly 1s ease-out infinite;
-  opacity:0;
-}
-.mc-particle:nth-child(1){background:#5D9E31;animation-delay:0s;}
-.mc-particle:nth-child(2){background:#A0752A;animation-delay:0.15s;}
-.mc-particle:nth-child(3){background:#9B9B9B;animation-delay:0.3s;}
-.mc-particle:nth-child(4){background:#5D9E31;animation-delay:0.45s;}
-.mc-particle:nth-child(5){background:#C4A35A;animation-delay:0.6s;}
-.mc-particle:nth-child(6){background:#A0752A;animation-delay:0.75s;}
-@keyframes particleFly{
-  0%{transform:translateY(0) scale(1);opacity:1}
-  100%{transform:translateY(-30px) scale(0);opacity:0}
-}
-.render-msg{
-  font-family:'Press Start 2P',monospace;
-  font-size:8px;color:#1A5C00;
-  animation:blink 1s infinite;
-  text-shadow:1px 1px 0 rgba(0,0,0,0.2);
-}
-.render-msgs{display:none}
-.render-msgs.on{display:block}
+
 
 /* ── Minecraft badge ── */
 .mc-badge{
@@ -578,9 +508,9 @@ input[type=range].mc-sl::-webkit-slider-thumb{
 
 <!-- Header -->
 <div class="hdr">
-  <div class="logo">Note<span>Forge</span></div>
+  <div class="logo">NOTEFORGE</div>
   <div class="sub">MP3 ➜ Minecraft Note Blocks</div>
-  <div class="mc-badge">⛏ JAVA EDITION COMPATIBLE</div>
+  <div class="mc-badge">JAVA EDITION COMPATIBLE</div>
 </div>
 
 <!-- 01 Source -->
@@ -736,22 +666,7 @@ input[type=range].mc-sl::-webkit-slider-thumb{
     <div class="st" id="s8"><div class="sd"></div>Synthesising instruments</div>
     <div class="st" id="s9"><div class="sd"></div>Encoding MP3</div>
   </div>
-  <!-- Minecraft crafting animation during render -->
-  <div class="mc-render-anim" id="mcAnim">
-    <div class="steve-wrap">
-      <span class="pickaxe">⛏</span>
-      <span class="steve">🧑</span>
-    </div>
-    <div class="mc-particles">
-      <div class="mc-particle"></div>
-      <div class="mc-particle"></div>
-      <div class="mc-particle"></div>
-      <div class="mc-particle"></div>
-      <div class="mc-particle"></div>
-      <div class="mc-particle"></div>
-    </div>
-    <div class="render-msg" id="renderMsg">CRAFTING NOTE BLOCK SONG...</div>
-  </div>
+
 </div>
 <div class="er" id="er"></div>
 
@@ -792,7 +707,7 @@ input[type=range].mc-sl::-webkit-slider-thumb{
   </div>
 </div>
 
-<div class="ft">NoteForge · Hosted on Railway · <a href="#">v5</a></div>
+<div class="ft">NoteForge · Open Note Block Studio compatible</div>
 </div>
 
 <script>
@@ -1389,15 +1304,27 @@ function quantiseAll(layers,bpm,subdiv){
 
 // ── Load MC samples from server
 async function loadMCSamples(instrs){
-  let available=[];
-  try{const r=await fetch('/sounds-list');const d=await r.json();available=d.sounds||[];}catch(e){}
-  await Promise.all(instrs.filter(i=>!sampleBufs[i]&&available.includes(i+'.ogg')).map(async instr=>{
+  // Build available set from sounds-list, but don't block on it
+  let available=new Set();
+  try{
+    const r=await fetch('/sounds-list');
+    if(r.ok){const d=await r.json();(d.sounds||[]).forEach(s=>available.add(s));}
+  }catch(e){}
+  // Also always try the instrument directly as fallback
+  await Promise.all(instrs.filter(i=>i&&i!=='none'&&!sampleBufs[i]).map(async instr=>{
+    // Only skip if sounds-list returned something AND this sound wasn't in it
+    if(available.size>0&&!available.has(instr+'.ogg'))return;
     try{
       const r=await fetch('/sounds/'+instr+'.ogg');
       if(!r.ok)throw new Error('HTTP '+r.status);
-      sampleBufs[instr]=await audioCtx.decodeAudioData(await r.arrayBuffer());
-    }catch(e){console.warn('Sample load failed:',instr);}
+      const ab=await r.arrayBuffer();
+      if(ab.byteLength<100)throw new Error('Empty response');
+      sampleBufs[instr]=await audioCtx.decodeAudioData(ab);
+      console.log('Loaded MC sound:',instr,'('+Math.round(ab.byteLength/1024)+'KB)');
+    }catch(e){console.warn('MC sound not available:',instr,'→ using synth fallback');}
   }));
+  const loaded=instrs.filter(i=>sampleBufs[i]).length;
+  console.log('Sounds loaded:',loaded+'/'+instrs.length,Object.keys(sampleBufs));
 }
 
 
@@ -1591,14 +1518,12 @@ async function doConvert(){
       await stg('s7',70,'Loading Minecraft sounds...');
       await loadMCSamples([...new Set(allNotes.map(n=>n.instr))]);
       await stg('s8',80,'Rendering...');
-      document.getElementById('mcAnim').classList.add('on');
       $('pFill').classList.add('active');
       const estMs=Math.max(5000,allNotes.length*15);
       const stopTk=startProgressTicker(80,95,estMs);
       rendBuf=await renderAudio(allNotes,(midiSrcNotes[midiSrcNotes.length-1]?.timeSec||30)+2,bpm,4);
       stopTk();
       $('pFill').classList.remove('active');
-      document.getElementById('mcAnim').classList.remove('on');
       await stg('s9',92,'Encoding MP3...');
       await ensureLame(); mp3Blob=encodeMP3(rendBuf); nbsBlob=buildNbs(allNotes,bpm,4);
       $('pFill').style.width='100%';$('pPct').textContent='100%';
@@ -1609,7 +1534,6 @@ async function doConvert(){
       const ab=document.getElementById('btnApplyInstrs');
       if(ab)ab.style.display='block';
     }catch(e){
-      document.getElementById('mcAnim').classList.remove('on');
       showErr('MIDI render failed: '+e.message);
     }finally{
       $('btnGo').disabled=false;$('pg').classList.remove('on');
@@ -1690,7 +1614,6 @@ async function doConvert(){
     await sleep(30);
     // s8: rendering — this takes longest, show animated ticker
     await stg('s8',70,'Synthesising '+allNotes.length+' notes...');
-    document.getElementById('mcAnim').classList.add('on');
     $('pFill').classList.add('active');
     // Estimate render time: ~2s per minute of audio as baseline, min 8s, scales with note count
     const estRenderMs=Math.max(8000, srcBuf.duration*2000 + allNotes.length*15);
@@ -1707,14 +1630,12 @@ async function doConvert(){
     nbsBlob=buildNbs(allNotes,bpm,cal.subdiv);
     $('pFill').style.width='100%';$('pLbl').textContent='Done!';$('pPct').textContent='100%';
     document.querySelectorAll('.st').forEach(s=>{s.classList.remove('a');s.classList.add('d');});
-    document.getElementById('mcAnim').classList.remove('on');
     await sleep(300);
     showResult(bpm);
     const _ab=document.getElementById('btnApplyInstrs');if(_ab)_ab.style.display='block';
   }catch(e){
     if(stopTicker)stopTicker();$('pFill').classList.remove('active');
     showErr('Error: '+e.message+'\n\nTip: Try a shorter song or reduce note density.');
-    document.getElementById('mcAnim').classList.remove('on');
     console.error(e);
   }finally{
     $('btnGo').disabled=false;$('pg').classList.remove('on');
