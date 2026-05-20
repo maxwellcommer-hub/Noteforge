@@ -10,22 +10,47 @@ CORS(app)
 # ── Download sounds at startup in background thread
 def ensure_sounds():
     os.makedirs(SOUNDS_DIR, exist_ok=True)
-    existing = [f for f in os.listdir(SOUNDS_DIR) if f.endswith('.ogg')]
-    if len(existing) >= 15:
-        print(f"[sounds] {len(existing)} sounds already present, skipping download")
-        return
-    print(f"[sounds] Only {len(existing)} sounds found, downloading...")
-    try:
-        script = os.path.join(BASE_DIR, 'download_sounds.py')
-        result = subprocess.run(['python3', script], capture_output=True, text=True, timeout=120)
-        print(result.stdout[-2000:])
-        if result.returncode == 0:
-            count = len([f for f in os.listdir(SOUNDS_DIR) if f.endswith('.ogg')])
-            print(f"[sounds] Download complete: {count} sounds ready")
-        else:
-            print(f"[sounds] Download failed: {result.stderr[-500:]}")
-    except Exception as e:
-        print(f"[sounds] Error during download: {e}")
+    oggs = [f for f in os.listdir(SOUNDS_DIR) if f.endswith('.ogg')]
+    mp3s = [f for f in os.listdir(SOUNDS_DIR) if f.endswith('.mp3')]
+    
+    # Download OGGs if missing
+    if len(oggs) < 15:
+        print(f"[sounds] Only {len(oggs)} OGGs found, downloading...")
+        try:
+            script = os.path.join(BASE_DIR, 'download_sounds.py')
+            result = subprocess.run(['python3', script], capture_output=True, text=True, timeout=120)
+            print(result.stdout[-2000:])
+            oggs = [f for f in os.listdir(SOUNDS_DIR) if f.endswith('.ogg')]
+            print(f"[sounds] Download complete: {len(oggs)} OGGs ready")
+        except Exception as e:
+            print(f"[sounds] Download error: {e}")
+    else:
+        print(f"[sounds] {len(oggs)} OGGs already present")
+    
+    # Convert OGGs to MP3 for Safari/iOS support
+    if len(mp3s) < len(oggs):
+        print(f"[sounds] Converting OGGs to MP3 for Safari support...")
+        for ogg_file in os.listdir(SOUNDS_DIR):
+            if not ogg_file.endswith('.ogg'):
+                continue
+            mp3_file = ogg_file.replace('.ogg', '.mp3')
+            mp3_path = os.path.join(SOUNDS_DIR, mp3_file)
+            ogg_path = os.path.join(SOUNDS_DIR, ogg_file)
+            if os.path.exists(mp3_path):
+                continue
+            try:
+                subprocess.run([
+                    'ffmpeg', '-i', ogg_path, '-codec:a', 'libmp3lame',
+                    '-q:a', '2', '-y', mp3_path
+                ], capture_output=True, timeout=30)
+                if os.path.exists(mp3_path):
+                    print(f"  ✓ {mp3_file}")
+            except Exception as e:
+                print(f"  ✗ {mp3_file}: {e}")
+        mp3s = [f for f in os.listdir(SOUNDS_DIR) if f.endswith('.mp3')]
+        print(f"[sounds] {len(mp3s)} MP3s ready")
+    else:
+        print(f"[sounds] {len(mp3s)} MP3s already present")
 
 # Run in background so server starts immediately
 threading.Thread(target=ensure_sounds, daemon=True).start()

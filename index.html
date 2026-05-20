@@ -1303,23 +1303,30 @@ function quantiseAll(layers,bpm,subdiv){
 }
 
 // ── Load MC samples from server
+// Check OGG support once (Safari/iOS doesn't support OGG)
+const OGG_SUPPORTED=(()=>{const a=document.createElement('audio');return a.canPlayType('audio/ogg')!=='';})();
+
 async function loadMCSamples(instrs){
-  // Always attempt to fetch every instrument — no gating on sounds-list
-  // The sounds-list check was causing instruments to be skipped incorrectly
   await Promise.all(instrs.filter(i=>i&&i!=='none'&&!sampleBufs[i]).map(async instr=>{
-    try{
-      const r=await fetch('/sounds/'+instr+'.ogg');
-      if(!r.ok)throw new Error('HTTP '+r.status);
-      const ab=await r.arrayBuffer();
-      if(ab.byteLength<100)throw new Error('Empty response');
-      sampleBufs[instr]=await audioCtx.decodeAudioData(ab.slice(0));
-      console.log('✓ MC sound:',instr,'('+Math.round(ab.byteLength/1024)+'KB)');
-    }catch(e){
-      console.warn('✗ MC sound not available:',instr,'- using synth');
+    // Try OGG first, then MP3 fallback for Safari/iOS
+    const exts=OGG_SUPPORTED?['ogg','mp3']:['mp3','ogg'];
+    for(const ext of exts){
+      try{
+        const r=await fetch('/sounds/'+instr+'.'+ext);
+        if(!r.ok)continue;
+        const ab=await r.arrayBuffer();
+        if(ab.byteLength<100)continue;
+        sampleBufs[instr]=await audioCtx.decodeAudioData(ab.slice(0));
+        console.log('✓ MC sound:',instr+'.'+ext,'('+Math.round(ab.byteLength/1024)+'KB)');
+        break;
+      }catch(e){
+        console.warn('✗ MC sound failed:',instr+'.'+ext,e.message||e);
+      }
     }
+    if(!sampleBufs[instr])console.warn('✗ No MC sound for:',instr,'→ synth fallback');
   }));
   const loaded=instrs.filter(i=>sampleBufs[i]).length;
-  console.log('MC sounds loaded:',loaded+'/'+instrs.length,'→',Object.keys(sampleBufs).join(', ')||'none');
+  console.log('MC sounds:',loaded+'/'+instrs.length,'loaded. OGG support:',OGG_SUPPORTED);
 }
 
 
