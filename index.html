@@ -9,49 +9,76 @@
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323:wght@400&display=swap');
 
 :root{
-  /* Minecraft palette */
-  --dirt:   #866043;
+  /* Minecraft Light Mode palette */
+  --sky:    #7EC8E3;
+  --sky2:   #B5DCF0;
   --grass:  #5D9E31;
-  --stone:  #8B8B8B;
-  --wood:   #A0752A;
-  --night:  #0D0D1A;
-  --dp:     #111120;
-  --panel:  #161628;
-  --border: #2A2A4A;
-  --green:  #55FF55;
-  --aqua:   #55FFFF;
-  --gold:   #FFAA00;
-  --red:    #FF5555;
-  --purple: #AA00AA;
-  --white:  #F0F0F0;
-  --gray:   #AAAAAA;
-  --dgray:  #555577;
-  --glow:   rgba(85,255,85,0.12);
+  --grass2: #78c842;
+  --dirt:   #A0752A;
+  --dirt2:  #866043;
+  --stone:  #9B9B9B;
+  --stone2: #7A7A7A;
+  --wood:   #C4A35A;
+  --panel:  #C6B48A;
+  --panel2: #D4C49A;
+  --border: #5D4E2A;
+  --border2:#7A6640;
+  --green:  #2D7A0A;
+  --aqua:   #0A6B8A;
+  --gold:   #C87800;
+  --red:    #AA1111;
+  --white:  #F5F0E8;
+  --text:   #2A1F0A;
+  --gray:   #6B5A3A;
+  --dgray:  #8B7A5A;
+  --shadow: rgba(0,0,0,0.25);
+  --glow:   rgba(93,158,49,0.25);
+  /* Inventory colors */
+  --inv-bg:    #C6C6C6;
+  --inv-dark:  #8B8B8B;
+  --inv-light: #FFFFFF;
+  --inv-slot:  #8B8B8B;
+  --inv-text:  #1A1A1A;
+  --inv-label: #3F3F3F;
 }
 
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;image-rendering:pixelated}
 body{
-  background:var(--night);
-  color:var(--white);
+  background:var(--sky);
+  color:var(--inv-text);
   font-family:'VT323',monospace;
   font-size:18px;
   min-height:100vh;
   overflow-x:hidden;
+  /* Sky gradient background */
+  background:linear-gradient(180deg,#87CEEB 0%,#B5DCF0 40%,#C8E8F8 60%,#D4EEF4 100%);
 }
 
-/* ── Starfield/night sky bg ── */
+/* ── Minecraft daytime sky with clouds ── */
 body::before{
   content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   background:
-    radial-gradient(1px 1px at 10% 15%, rgba(255,255,255,0.6) 0%, transparent 100%),
-    radial-gradient(1px 1px at 25% 35%, rgba(255,255,255,0.4) 0%, transparent 100%),
-    radial-gradient(1px 1px at 40% 8%,  rgba(255,255,255,0.5) 0%, transparent 100%),
-    radial-gradient(1px 1px at 60% 22%, rgba(255,255,255,0.3) 0%, transparent 100%),
-    radial-gradient(1px 1px at 75% 12%, rgba(255,255,255,0.6) 0%, transparent 100%),
-    radial-gradient(1px 1px at 85% 40%, rgba(255,255,255,0.4) 0%, transparent 100%),
-    radial-gradient(1px 1px at 92% 6%,  rgba(255,255,255,0.5) 0%, transparent 100%),
-    radial-gradient(1px 1px at 15% 55%, rgba(255,255,255,0.3) 0%, transparent 100%),
-    radial-gradient(1px 1px at 50% 50%, rgba(255,255,255,0.2) 0%, transparent 100%);
+    /* Pixel clouds */
+    radial-gradient(ellipse 80px 30px at 15% 20%, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 70%),
+    radial-gradient(ellipse 120px 40px at 18% 20%, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0) 70%),
+    radial-gradient(ellipse 60px 25px at 55% 12%, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 70%),
+    radial-gradient(ellipse 100px 35px at 58% 12%, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0) 70%),
+    radial-gradient(ellipse 70px 28px at 80% 25%, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0) 70%);
+  animation: cloudDrift 60s linear infinite;
+}
+@keyframes cloudDrift{
+  0%{background-position:0 0}
+  100%{background-position:200px 0}
+}
+
+/* ── Grass strip at bottom of screen ── */
+body::after{
+  content:'';position:fixed;bottom:0;left:0;right:0;height:48px;pointer-events:none;z-index:0;
+  background:
+    /* Grass top */
+    linear-gradient(180deg,var(--grass2) 0px,var(--grass2) 16px,var(--grass) 16px,var(--grass) 28px,var(--dirt) 28px,var(--dirt2) 100%);
+  /* Pixel grass texture */
+  image-rendering:pixelated;
 }
 
 /* ── Pixel block border utility ── */
@@ -62,7 +89,7 @@ body::before{
   box-shadow:inset -2px -2px 0 #000, inset 2px 2px 0 rgba(255,255,255,0.2);
 }
 
-.wrap{max-width:680px;margin:0 auto;padding:28px 22px 80px;position:relative;z-index:1}
+.wrap{max-width:680px;margin:0 auto;padding:28px 22px 96px;position:relative;z-index:1}
 
 /* ── Header ── */
 .hdr{text-align:center;margin-bottom:28px;padding:20px 0 16px}
@@ -99,14 +126,15 @@ body::before{
 
 /* ── Pixel panel (card) ── */
 .panel{
-  background:var(--panel);
-  border-top:3px solid #3a3a5c;
-  border-left:3px solid #3a3a5c;
-  border-bottom:3px solid #08080f;
-  border-right:3px solid #08080f;
-  padding:20px 22px;
-  margin-bottom:12px;
+  background:var(--inv-bg);
+  border-top:3px solid #FFFFFF;
+  border-left:3px solid #FFFFFF;
+  border-bottom:3px solid #373737;
+  border-right:3px solid #373737;
+  padding:18px 20px;
+  margin-bottom:10px;
   position:relative;
+  box-shadow:2px 2px 0 rgba(0,0,0,0.4);
 }
 .panel-title{
   font-family:'Press Start 2P',monospace;
@@ -158,7 +186,7 @@ body::before{
 .chip{display:none;align-items:center;gap:8px;padding:8px 10px;
   background:var(--dp);border-left:3px solid var(--green);margin-top:8px}
 .chip.on{display:flex}
-.cn{font-size:15px;color:var(--green);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}
+.cn{font-size:15px;color:#fff;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}
 .cs{font-size:13px;color:var(--dgray)}
 
 /* ── YouTube ── */
@@ -227,30 +255,32 @@ body::before{
 .ic.h{border-color:var(--aqua);color:var(--aqua);background:rgba(85,255,255,0.06)}
 .ic.b{border-color:var(--gold);color:var(--gold);background:rgba(255,170,0,0.06)}
 .mc-select{
-  flex:1;background:var(--dp);
-  border-top:2px solid #1a1a30;border-left:2px solid #1a1a30;
-  border-bottom:2px solid #3a3a5a;border-right:2px solid #3a3a5a;
-  color:var(--white);font-family:'VT323',monospace;font-size:16px;
+  flex:1;
+  background:var(--panel);
+  border-top:2px solid #888;border-left:2px solid #888;
+  border-bottom:2px solid #333;border-right:2px solid #333;
+  color:var(--inv-text);font-family:'VT323',monospace;font-size:16px;
   padding:6px 8px;outline:none;cursor:pointer;
 }
-.mc-select:focus{border-color:var(--green)}
+.mc-select:focus{border-color:var(--grass)}
 
 /* ── Pixel buttons (selectable) ── */
 .qr{display:flex;gap:5px}
 .qb{
   flex:1;padding:9px 4px;text-align:center;
   font-family:'Press Start 2P',monospace;font-size:7px;
-  cursor:pointer;color:var(--dgray);line-height:1.8;letter-spacing:0.5px;
-  background:var(--dp);
-  border-top:2px solid #3a3a5a;border-left:2px solid #3a3a5a;
-  border-bottom:2px solid #0d0d1a;border-right:2px solid #0d0d1a;
-  transition:all .1s;
+  cursor:pointer;color:var(--gray);line-height:1.8;letter-spacing:0.5px;
+  background:var(--stone);
+  border-top:2px solid #C0C0C0;border-left:2px solid #C0C0C0;
+  border-bottom:2px solid #4A4A4A;border-right:2px solid #4A4A4A;
+  transition:all .1s;box-shadow:2px 2px 0 var(--shadow);
 }
 .qb.sel{
-  color:var(--green);background:rgba(85,255,85,0.07);
-  border-top:2px solid #0d0d1a;border-left:2px solid #0d0d1a;
-  border-bottom:2px solid #3a3a5a;border-right:2px solid #3a3a5a;
+  color:var(--inv-text);background:var(--grass2);
+  border-top:2px solid #4A7A1A;border-left:2px solid #4A7A1A;
+  border-bottom:2px solid var(--grass2);border-right:2px solid var(--grass2);
 }
+.qb:active{transform:translateY(1px);box-shadow:none;}
 
 /* ── Sliders inside density panel ── */
 .slider-row{margin-top:10px}
@@ -288,34 +318,34 @@ input[type=range].mc-sl::-webkit-slider-thumb{
 .pg{display:none;margin-bottom:10px}
 .pg.on{display:block}
 .ph{display:flex;justify-content:space-between;font-size:14px;color:var(--dgray);margin-bottom:5px}
-.ph span:last-child{color:var(--green);font-family:'Press Start 2P',monospace;font-size:9px}
+.ph span:last-child{color:#1A5C00;font-family:'Press Start 2P',monospace;font-size:9px}
 .pb-track{
-  height:20px;background:var(--dp);position:relative;overflow:hidden;
-  border-top:2px solid #0d0d1a;border-left:2px solid #0d0d1a;
-  border-bottom:2px solid #3a3a5a;border-right:2px solid #3a3a5a;
-  margin-bottom:10px;
+  height:22px;position:relative;overflow:hidden;margin-bottom:10px;
+  background:#000;
+  border-top:2px solid #555;border-left:2px solid #555;
+  border-bottom:2px solid #CCC;border-right:2px solid #CCC;
+}
+/* XP bar background (dark green) */
+.pb-track::before{
+  content:'';position:absolute;inset:2px;
+  background:#0A3A00;
 }
 .pb-fill{
-  height:100%;background:var(--grass);width:0%;transition:width .15s linear;
-  position:relative;
-  /* Minecraft-style striped progress */
-  background-image:repeating-linear-gradient(
-    90deg,
-    var(--grass) 0px, var(--grass) 14px,
-    #4a8a26 14px, #4a8a26 16px
-  );
+  position:absolute;top:2px;bottom:2px;left:2px;width:0%;
+  transition:width .15s linear;
+  background:repeating-linear-gradient(90deg,#5DFF00 0px,#5DFF00 6px,#44CC00 6px,#44CC00 8px);
+  box-shadow:0 0 6px rgba(93,255,0,0.6);
 }
 .pb-fill::after{
-  content:'';position:absolute;inset:0;
-  background:linear-gradient(180deg,rgba(255,255,255,0.15) 0%,transparent 60%);
+  content:'';position:absolute;top:0;left:0;right:0;height:40%;
+  background:rgba(255,255,255,0.25);
 }
-/* Animated shine on progress bar */
+/* Animated shine */
 .pb-fill.active::before{
-  content:'';position:absolute;top:0;bottom:0;width:40px;
-  background:rgba(255,255,255,0.2);
-  animation:shine 1.2s infinite linear;
+  content:'';position:absolute;top:0;bottom:0;width:30px;right:0;
+  background:rgba(255,255,255,0.35);animation:xpshine .6s infinite;
 }
-@keyframes shine{0%{left:-40px}100%{left:100%}}
+@keyframes xpshine{0%,100%{opacity:1}50%{opacity:0.3}}
 
 .stgs{display:flex;flex-direction:column;gap:3px}
 .st{display:flex;align-items:center;gap:7px;font-size:14px;color:var(--dgray);transition:color .2s}
@@ -347,9 +377,9 @@ input[type=range].mc-sl::-webkit-slider-thumb{
   padding:2px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
 
 /* ── Waveform viz ── */
-.viz{background:var(--dp);
-  border-top:2px solid #0d0d1a;border-left:2px solid #0d0d1a;
-  border-bottom:2px solid #3a3a5a;border-right:2px solid #3a3a5a;
+.viz{background:rgba(0,0,0,0.7);
+  border-top:2px solid #333;border-left:2px solid #333;
+  border-bottom:2px solid #999;border-right:2px solid #999;
   padding:10px;margin-bottom:12px}
 canvas{display:block;width:100%}
 #cvW{height:52px}#cvR{height:84px;margin-top:6px}
@@ -399,15 +429,148 @@ canvas{display:block;width:100%}
 
 /* ── Stats ── */
 .sts{display:flex;gap:6px}
-.sta{flex:1;text-align:center;background:var(--dp);padding:8px 4px;
-  border-top:1px solid #0d0d1a;border-left:1px solid #0d0d1a;
-  border-bottom:1px solid #3a3a5a;border-right:1px solid #3a3a5a;}
-.sv{font-family:'Press Start 2P',monospace;font-size:11px;color:var(--green);margin-bottom:3px}
+.sta{flex:1;text-align:center;background:rgba(255,255,255,0.4);padding:8px 4px;
+  border-top:1px solid #999;border-left:1px solid #999;
+  border-bottom:1px solid #444;border-right:1px solid #444;}
+.sv{font-family:'Press Start 2P',monospace;font-size:10px;color:#1A5C00;margin-bottom:3px}
 .sl{font-size:12px;color:var(--dgray)}
 
 /* ── Footer ── */
 .ft{text-align:center;margin-top:24px;font-size:13px;color:var(--dgray)}
 .ft a{color:var(--aqua)}
+
+/* ── Minecraft rendering animation ── */
+.mc-render-anim{display:none;text-align:center;padding:16px;margin:10px 0}
+.mc-render-anim.on{display:block}
+.steve-wrap{position:relative;height:64px;overflow:hidden;margin-bottom:8px}
+.steve{
+  display:inline-block;
+  font-size:40px;
+  animation:steveWalk 0.5s steps(2) infinite;
+  position:relative;
+}
+@keyframes steveWalk{
+  0%{transform:translateX(-20px) scaleX(1)}
+  25%{transform:translateX(0px) scaleX(1)}
+  50%{transform:translateX(20px) scaleX(1)}
+  75%{transform:translateX(0px) scaleX(1)}
+  100%{transform:translateX(-20px) scaleX(1)}
+}
+.pickaxe{
+  display:inline-block;
+  font-size:28px;
+  animation:pickaxeSwing 0.4s ease-in-out infinite alternate;
+  transform-origin:bottom right;
+}
+@keyframes pickaxeSwing{
+  from{transform:rotate(-30deg)}
+  to{transform:rotate(30deg)}
+}
+.mc-particles{
+  display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin-top:6px;
+}
+.mc-particle{
+  width:8px;height:8px;
+  animation:particleFly 1s ease-out infinite;
+  opacity:0;
+}
+.mc-particle:nth-child(1){background:#5D9E31;animation-delay:0s;}
+.mc-particle:nth-child(2){background:#A0752A;animation-delay:0.15s;}
+.mc-particle:nth-child(3){background:#9B9B9B;animation-delay:0.3s;}
+.mc-particle:nth-child(4){background:#5D9E31;animation-delay:0.45s;}
+.mc-particle:nth-child(5){background:#C4A35A;animation-delay:0.6s;}
+.mc-particle:nth-child(6){background:#A0752A;animation-delay:0.75s;}
+@keyframes particleFly{
+  0%{transform:translateY(0) scale(1);opacity:1}
+  100%{transform:translateY(-30px) scale(0);opacity:0}
+}
+.render-msg{
+  font-family:'Press Start 2P',monospace;
+  font-size:8px;color:#1A5C00;
+  animation:blink 1s infinite;
+  text-shadow:1px 1px 0 rgba(0,0,0,0.2);
+}
+.render-msgs{display:none}
+.render-msgs.on{display:block}
+
+/* ── Minecraft badge ── */
+.mc-badge{
+  display:inline-block;
+  background:var(--grass);
+  color:#fff;
+  font-family:'Press Start 2P',monospace;
+  font-size:8px;
+  padding:5px 10px;margin-top:10px;
+  border-top:2px solid var(--grass2);border-left:2px solid var(--grass2);
+  border-bottom:2px solid #1a4a00;border-right:2px solid #1a4a00;
+  box-shadow:2px 2px 0 rgba(0,0,0,0.25);
+  text-shadow:1px 1px 0 rgba(0,0,0,0.3);
+}
+
+/* ── Header logo light mode ── */
+.hdr{text-align:center;margin-bottom:28px;padding:16px 0}
+.logo-wrap{
+  display:inline-block;
+  background:var(--panel2);
+  border-top:3px solid rgba(255,255,255,0.6);border-left:3px solid rgba(255,255,255,0.6);
+  border-bottom:3px solid var(--border);border-right:3px solid var(--border);
+  padding:14px 24px;margin-bottom:8px;
+  box-shadow:4px 4px 0 rgba(0,0,0,0.2);
+}
+
+/* Slider row in light mode */
+.slider-row{margin-top:10px}
+.slider-head{display:flex;justify-content:space-between;font-size:13px;color:var(--inv-label);margin-bottom:5px}
+.slider-head span:last-child{color:var(--green);font-family:'Press Start 2P',monospace;font-size:9px}
+input[type=range].mc-sl{
+  width:100%;-webkit-appearance:none;height:6px;
+  background:var(--stone);outline:none;cursor:pointer;display:block;
+  border-top:1px solid #555;border-left:1px solid #555;
+  border-bottom:1px solid #CCC;border-right:1px solid #CCC;
+}
+input[type=range].mc-sl::-webkit-slider-thumb{
+  -webkit-appearance:none;width:18px;height:18px;
+  background:var(--panel2);cursor:pointer;
+  border-top:2px solid rgba(255,255,255,0.8);border-left:2px solid rgba(255,255,255,0.8);
+  border-bottom:2px solid var(--border);border-right:2px solid var(--border);
+  box-shadow:1px 1px 0 rgba(0,0,0,0.3);
+}
+
+/* BPM label in light mode */
+.bpm-label{font-family:'Press Start 2P',monospace;font-size:8px;color:var(--gray);white-space:nowrap}
+.bpm-num{
+  background:var(--inv-slot);
+  border-top:2px solid #373737;border-left:2px solid #373737;
+  border-bottom:2px solid var(--inv-light);border-right:2px solid var(--inv-light);
+  color:#1A5C00;font-family:'Press Start 2P',monospace;font-size:9px;
+  padding:5px 7px;outline:none;text-align:center;
+}
+
+/* Stage dots light mode */
+.sd{
+  width:12px;height:12px;flex-shrink:0;
+  background:var(--stone);
+  border-top:1px solid #CCC;border-left:1px solid #CCC;
+  border-bottom:1px solid #555;border-right:1px solid #555;
+}
+
+/* Download buttons light mode */
+.bd{
+  padding:10px 6px;text-align:center;
+  font-family:'Press Start 2P',monospace;font-size:7px;
+  cursor:pointer;letter-spacing:0.5px;line-height:1.6;
+  box-shadow:2px 2px 0 rgba(0,0,0,0.2);
+}
+.bd:active{transform:translateY(2px);box-shadow:none;}
+
+/* result badge */
+.rb{font-size:12px;color:#1A5C00;border-left:3px solid #5D9E31;
+  padding:2px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;
+  background:rgba(93,158,49,0.15);}
+.rt{font-family:'Press Start 2P',monospace;font-size:10px;color:#1A5C00;text-shadow:1px 1px 0 rgba(255,255,255,0.5)}
+
+/* Panel title icon */
+.panel-title-icon{font-size:14px;margin-right:4px;}
 </style>
 </head>
 <body>
@@ -422,17 +585,32 @@ canvas{display:block;width:100%}
 
 <!-- 01 Source -->
 <div class="panel">
-  <div class="panel-title">01 SOURCE</div>
+  <div class="panel-title"><span class="panel-title-icon">📀</span>01 — SOURCE</div>
+  <div class="tabs" style="margin-bottom:12px">
+    <button class="tab on" id="tabMp3" onclick="switchTab('mp3')">🎵 MP3</button>
+    <button class="tab" id="tabMidi" onclick="switchTab('midi')">🎹 MIDI</button>
+  </div>
 
-
-  <div id="pane-mp3">
+  <div id="pane-mp3" class="pane on">
     <div class="dz" id="dz">
       <input type="file" id="fi" accept=".mp3,audio/mpeg">
       <span class="dz-icon">📀</span>
-      <div class="dz-t">DROP MP3 HERE</div>
-      <div class="dz-s">or tap to browse your files</div>
+      <div class="dz-t">DROP MP3 OR TAP TO BROWSE</div>
+      <div class="dz-s">MP3 only · all processing is local</div>
     </div>
     <div class="chip" id="chip"><span>🎵</span><span class="cn" id="cn"></span><span class="cs" id="cs"></span></div>
+  </div>
+
+  <div id="pane-midi" class="pane">
+    <div class="dz" id="dzMidi">
+      <input type="file" id="fiMidi" accept=".mid,.midi">
+      <span class="dz-icon">🎹</span>
+      <div class="dz-t">DROP MIDI OR TAP TO BROWSE</div>
+      <div class="dz-s">.mid / .midi · skips pitch detection, sounds better</div>
+    </div>
+    <div class="chip" id="chipMidi" style="display:none">
+      <span>🎹</span><span class="cn" id="cnMidi"></span><span class="cs" id="csMidi"></span>
+    </div>
   </div>
 
 
@@ -443,20 +621,28 @@ canvas{display:block;width:100%}
     <div class="di"><span class="dk">AUTO:</span><span class="dv" id="dInstr" style="font-size:0.55rem">—</span></div>
   </div>
 
-  <div class="bpm-row" id="bpmRow" style="display:none">
-    <span class="bpm-label">BPM</span>
-    <input class="bpm-num" id="bpmNum" type="number" min="40" max="300" value="120">
-    <input class="bpm-sl mc-sl" id="bpmSl" type="range" min="40" max="300" value="120">
-    <button class="btn-tap" id="tapBtn" onclick="tap()">TAP</button>
+  <div class="bpm-row" id="bpmRow" style="display:none;flex-direction:column;gap:8px">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span class="bpm-label" style="width:60px">SPEED</span>
+      <input class="bpm-sl mc-sl" id="bpmSl" type="range" min="50" max="200" value="100" step="5"
+        oninput="updateSpeed(this.value)">
+      <span class="bpm-num" id="speedVal" style="min-width:52px;flex-shrink:0;text-align:center;font-size:12px;white-space:nowrap">100%</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span class="bpm-label" style="width:60px">VOLUME</span>
+      <input class="bpm-sl mc-sl" id="exportVol" type="range" min="50" max="200" value="100" step="5"
+        oninput="updateExportVol(this.value)">
+      <span class="bpm-num" id="volVal" style="min-width:52px;flex-shrink:0;text-align:center;font-size:12px;white-space:nowrap">100%</span>
+    </div>
   </div>
 
   <div id="instrWrap" style="display:none">
-    <div class="il">AUTO-DETECTED INSTRUMENTS — 🔊 previews sound, change triggers instant re-render</div>
+    <div class="il" style="color:var(--inv-label);font-size:12px;margin-bottom:8px">AUTO-DETECTED — tap 🔊 to preview</div>
     <div style="display:flex;flex-direction:column;gap:7px;margin-top:6px">
       <div style="display:flex;align-items:center;gap:6px">
-        <span style="font-size:13px;color:var(--green);width:60px;flex-shrink:0">♪ MELODY</span>
-        <button onclick="previewInstr('instrMelody')" style="background:var(--dp);border:1px solid var(--green);color:var(--green);font-size:12px;padding:4px 8px;cursor:pointer;flex-shrink:0">🔊</button>
-        <select id="instrMelody" class="mc-select" onchange="quickRerender()">
+        <span style="font-size:13px;color:#1A5C00;width:60px;flex-shrink:0;font-family:'Press Start 2P',monospace;font-size:8px">MELODY</span>
+        <button onclick="previewInstr('instrMelody')" style="background:var(--inv-dark);border-top:2px solid var(--inv-light);border-left:2px solid var(--inv-light);border-bottom:2px solid #373737;border-right:2px solid #373737;font-size:12px;padding:4px 8px;cursor:pointer;flex-shrink:0;box-shadow:1px 1px 0 rgba(0,0,0,0.3)">🔊</button>
+        <select id="instrMelody" class="mc-select">
           <option value="harp">Harp</option>
           <option value="bell">Bell</option>
           <option value="xylophone">Xylophone</option>
@@ -471,9 +657,9 @@ canvas{display:block;width:100%}
         </select>
       </div>
       <div style="display:flex;align-items:center;gap:6px">
-        <span style="font-size:13px;color:var(--aqua);width:60px;flex-shrink:0">♫ HARMONY</span>
-        <button onclick="previewInstr('instrHarmony')" style="background:var(--dp);border:1px solid var(--aqua);color:var(--aqua);font-size:12px;padding:4px 8px;cursor:pointer;flex-shrink:0">🔊</button>
-        <select id="instrHarmony" class="mc-select" onchange="quickRerender()">
+        <span style="font-size:13px;color:#0A3A5C;width:60px;flex-shrink:0;font-family:'Press Start 2P',monospace;font-size:8px">HARMONY</span>
+        <button onclick="previewInstr('instrHarmony')" style="background:var(--inv-dark);border-top:2px solid var(--inv-light);border-left:2px solid var(--inv-light);border-bottom:2px solid #373737;border-right:2px solid #373737;font-size:12px;padding:4px 8px;cursor:pointer;flex-shrink:0;box-shadow:1px 1px 0 rgba(0,0,0,0.3)">🔊</button>
+        <select id="instrHarmony" class="mc-select">
           <option value="guitar">Guitar</option>
           <option value="banjo">Banjo</option>
           <option value="harp">Harp</option>
@@ -489,9 +675,9 @@ canvas{display:block;width:100%}
         </select>
       </div>
       <div style="display:flex;align-items:center;gap:6px">
-        <span style="font-size:13px;color:var(--gold);width:60px;flex-shrink:0">♩ BASS</span>
-        <button onclick="previewInstr('instrBass')" style="background:var(--dp);border:1px solid var(--gold);color:var(--gold);font-size:12px;padding:4px 8px;cursor:pointer;flex-shrink:0">🔊</button>
-        <select id="instrBass" class="mc-select" onchange="quickRerender()">
+        <span style="font-size:13px;color:#5C3A00;width:60px;flex-shrink:0;font-family:'Press Start 2P',monospace;font-size:8px">BASS</span>
+        <button onclick="previewInstr('instrBass')" style="background:var(--inv-dark);border-top:2px solid var(--inv-light);border-left:2px solid var(--inv-light);border-bottom:2px solid #373737;border-right:2px solid #373737;font-size:12px;padding:4px 8px;cursor:pointer;flex-shrink:0;box-shadow:1px 1px 0 rgba(0,0,0,0.3)">🔊</button>
+        <select id="instrBass" class="mc-select">
           <option value="bass">Bass</option>
           <option value="didgeridoo">Didgeridoo</option>
           <option value="harp">Harp</option>
@@ -501,6 +687,14 @@ canvas{display:block;width:100%}
         </select>
       </div>
     </div>
+    <button onclick="quickRerender()" id="btnApplyInstrs" style="display:none;margin-top:10px;width:100%;padding:10px;
+      background:#5D9E31;
+      border-top:3px solid #78c842;border-left:3px solid #78c842;
+      border-bottom:3px solid #2d5a0e;border-right:3px solid #2d5a0e;
+      color:#fff;font-family:'Press Start 2P',monospace;font-size:9px;
+      cursor:pointer;letter-spacing:1px;box-shadow:2px 2px 0 rgba(0,0,0,0.3);">
+      ✓ APPLY INSTRUMENTS
+    </button>
   </div>
 </div>
 
@@ -508,9 +702,9 @@ canvas{display:block;width:100%}
 <div class="panel">
   <div class="panel-title">02 INSTRUMENTS & DENSITY</div>
   <div class="qr" style="margin-bottom:12px">
-    <div class="qb sel" id="dn1" onclick="setDensity('minimal')">🎵<br>MINIMAL<br><span style="color:#555577;font-size:6px">Clean</span></div>
-    <div class="qb" id="dn2" onclick="setDensity('moderate')">🎶<br>MODERATE<br><span style="color:#555577;font-size:6px">+Bass</span></div>
-    <div class="qb" id="dn3" onclick="setDensity('full')">🎼<br>FULL<br><span style="color:#555577;font-size:6px">All layers</span></div>
+    <div class="qb sel" id="dn1" onclick="setDensity('minimal')">🎵<br>MINIMAL<br><span style="color:var(--inv-label);font-size:6px">Clean</span></div>
+    <div class="qb" id="dn2" onclick="setDensity('moderate')">🎶<br>MODERATE<br><span style="color:var(--inv-label);font-size:6px">+Bass</span></div>
+    <div class="qb" id="dn3" onclick="setDensity('full')">🎼<br>FULL<br><span style="color:var(--inv-label);font-size:6px">All layers</span></div>
   </div>
   <div class="slider-row">
     <div class="slider-head"><span>Max notes per beat</span><span id="npbVal">2</span></div>
@@ -541,6 +735,22 @@ canvas{display:block;width:100%}
     <div class="st" id="s7"><div class="sd"></div>Loading Minecraft sounds</div>
     <div class="st" id="s8"><div class="sd"></div>Synthesising instruments</div>
     <div class="st" id="s9"><div class="sd"></div>Encoding MP3</div>
+  </div>
+  <!-- Minecraft crafting animation during render -->
+  <div class="mc-render-anim" id="mcAnim">
+    <div class="steve-wrap">
+      <span class="pickaxe">⛏</span>
+      <span class="steve">🧑</span>
+    </div>
+    <div class="mc-particles">
+      <div class="mc-particle"></div>
+      <div class="mc-particle"></div>
+      <div class="mc-particle"></div>
+      <div class="mc-particle"></div>
+      <div class="mc-particle"></div>
+      <div class="mc-particle"></div>
+    </div>
+    <div class="render-msg" id="renderMsg">CRAFTING NOTE BLOCK SONG...</div>
   </div>
 </div>
 <div class="er" id="er"></div>
@@ -671,6 +881,7 @@ function familyVariant(familyName, midi) {
 
 let audioCtx=null,srcBuf=null,rendBuf=null,allNotes=[];
 let detBpm=120,useBpm=120,quality='balanced',srcName='song';
+let speedPct=100,exportVolPct=100;
 let playSource=null,gainNode=null,isPlaying=false;
 let playStart=0,playOffset=0,rafId=null;
 let mp3Blob=null,nbsBlob=null,sampleBufs={};
@@ -700,8 +911,18 @@ function setDensity(d){
   if(n){n.value=p.npb;$('npbVal').textContent=p.npb;}
   if(v){v.value=p.vel;$('velVal').textContent=p.vel+'%';}
 }
-$('bpmNum').addEventListener('input',e=>{const v=Math.max(40,Math.min(300,+e.target.value||120));$('bpmSl').value=v;useBpm=v;});
-$('bpmSl').addEventListener('input',e=>{$('bpmNum').value=e.target.value;useBpm=+e.target.value;});
+function switchTab(t){
+  currentTab=t;
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));
+  const at=document.getElementById('tab'+t.charAt(0).toUpperCase()+t.slice(1));
+  if(at)at.classList.add('on');
+  ['mp3','midi'].forEach(id=>{const el=document.getElementById('pane-'+id);if(el)el.classList.toggle('on',id===t);});
+}
+let currentTab='mp3';
+
+// Speed and volume controls
+function updateSpeed(v){document.getElementById('speedVal').textContent=v+'%';speedPct=+v;}
+function updateExportVol(v){document.getElementById('volVal').textContent=v+'%';exportVolPct=+v;}
 function tap(){
   const now=performance.now();
   if(now-lastTap>2500)tapTimes=[];
@@ -760,6 +981,9 @@ async function loadFile(f){
   srcName=f.name.replace(/\.mp3$/i,'');
   $('cn').textContent=f.name;$('cs').textContent=(f.size/1024/1024).toFixed(2)+' MB';
   $('chip').classList.add('on');$('res').classList.remove('on');
+  isMidiMode=false;midiSrcNotes=[];
+  const ap=document.getElementById('btnApplyInstrs');if(ap)ap.style.display='none';
+  document.getElementById('instrWrap').style.display='none';
   const reader=new FileReader();
   reader.onload=async ev=>{
     try{ensureCtx();srcBuf=await audioCtx.decodeAudioData(ev.target.result.slice(0));await afterLoad();}
@@ -878,7 +1102,7 @@ async function afterLoad(){
   $('dBpm').textContent=Math.round(bpm*10)/10;
   $('dKey').textContent=detectKey(srcBuf);
   $('dbar').classList.add('on');
-  $('bpmNum').value=Math.round(bpm);$('bpmSl').value=Math.round(bpm);
+  $('bpmSl').value=100; // speed always starts at 100%
   $('bpmRow').style.display='flex';
   previewInstrs(srcBuf);$('instrWrap').style.display='block';
   $('btnGo').disabled=false;
@@ -1096,8 +1320,7 @@ function yin(buf,sr){
   return r>1?sr/r:-1;
 }
 
-// ── Pitch tracker with onset/offset detection and progress callback
-// Produces note segments with precise start time and duration
+// ── Pitch tracker with onset/offset detection
 async function trackBand(abuf,sr,hopSec,smoothN,midiLo,midiHi,autoVelThresh,onProgress){
   autoVelThresh=autoVelThresh!==undefined?autoVelThresh:velThreshold;
   const mono=abuf.getChannelData(0);
@@ -1131,7 +1354,6 @@ async function trackBand(abuf,sr,hopSec,smoothN,midiLo,midiHi,autoVelThresh,onPr
     }
   }
   if(prev>0&&cnt>=smoothN)segments.push({timeSec:segStart,durSec:(mono.length/sr)-segStart,midi:prev,vel:Math.min(1,segMaxRms*6)});
-  // Allow notes as short as 1 hop — fills gaps for fast songs
   return segments.filter(n=>n.durSec>=hopSec*0.5);
 }
 
@@ -1265,26 +1487,27 @@ async function renderAudio(notes,dur,bpm,subdiv){  subdiv=subdiv||4;
   const off=new OfflineAudioContext(2,Math.ceil(sr*totalDur),sr);
 
   // Master chain: gain → compressor → reverb send → destination
-  const master=off.createGain(); master.gain.value=0.72;
+  // Master gain — boosted for louder export (was 0.72, now 1.4 with hard limiter)
+  const master=off.createGain(); master.gain.value=1.4*(exportVolPct/100);
   const comp=off.createDynamicsCompressor();
-  comp.threshold.value=-10; comp.knee.value=5;
-  comp.ratio.value=2.5; comp.attack.value=0.004; comp.release.value=0.18;
-  master.connect(comp);
+  comp.threshold.value=-6; comp.knee.value=3;
+  comp.ratio.value=6; comp.attack.value=0.001; comp.release.value=0.05;
+  // Hard limiter after compressor to prevent clipping
+  const limiter=off.createDynamicsCompressor();
+  limiter.threshold.value=-1; limiter.knee.value=0;
+  limiter.ratio.value=20; limiter.attack.value=0.001; limiter.release.value=0.01;
+  master.connect(comp); comp.connect(limiter);
 
-  // Small room reverb for natural note blending (like a Minecraft cave)
+  // Subtle reverb (15% wet)
   const convolver=off.createConvolver();
-  const irLen=Math.floor(sr*0.8); // 0.8s impulse
+  const irLen=Math.floor(sr*0.6);
   const ir=off.createBuffer(2,irLen,sr);
-  for(let c=0;c<2;c++){
-    const d=ir.getChannelData(c);
-    for(let i=0;i<irLen;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/irLen,3);
-  }
+  for(let c=0;c<2;c++){const d=ir.getChannelData(c);for(let i=0;i<irLen;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/irLen,3);}
   convolver.buffer=ir;
-
-  const dryGain=off.createGain(); dryGain.gain.value=0.82;
-  const wetGain=off.createGain(); wetGain.gain.value=0.18;
-  comp.connect(dryGain); dryGain.connect(off.destination);
-  comp.connect(convolver); convolver.connect(wetGain); wetGain.connect(off.destination);
+  const dryGain=off.createGain(); dryGain.gain.value=0.85;
+  const wetGain=off.createGain(); wetGain.gain.value=0.15;
+  limiter.connect(dryGain); dryGain.connect(off.destination);
+  limiter.connect(convolver); convolver.connect(wetGain); wetGain.connect(off.destination);
 
   // Per-instrument volume balancing
   const lv={
@@ -1344,11 +1567,56 @@ function encodeMP3(audioBuf){
 
 // ── Main convert
 async function doConvert(){
-  if(!srcBuf)return showErr('No audio loaded.');
+  if(!srcBuf&&!isMidiMode)return showErr('No audio loaded.');
   hideErr();$('btnGo').disabled=true;
   $('pg').classList.add('on');$('res').classList.remove('on');
   allNotes=[];
-  const bpm=useBpm;
+  // MIDI shortcut — skip all pitch tracking
+  if(isMidiMode&&midiSrcNotes.length){
+    try{
+      await stg('s1',10,'Loading MIDI notes...');await sleep(50);
+      const bpm=midiSrcNotes._bpm*(speedPct/100)||120;
+      useBpm=bpm;
+      const{melody,harmony,bass}=getInstrs();
+      // Separate by pitch range (same as audio pipeline)
+      const hiN=midiSrcNotes.filter(n=>n.midi>=52).map(n=>({...n,instr:melody}));
+      const miN=midiSrcNotes.filter(n=>n.midi>=45&&n.midi<52).map(n=>({...n,instr:harmony}));
+      const loN=midiSrcNotes.filter(n=>n.midi<45).map(n=>({...n,instr:bass}));
+      await stg('s6',60,'Quantising MIDI notes...');
+      allNotes=quantiseAll([
+        {notes:hiN,instr:melody,family:melody},
+        {notes:miN,instr:harmony,family:harmony},
+        {notes:loN,instr:bass,family:bass},
+      ],bpm,4);
+      await stg('s7',70,'Loading Minecraft sounds...');
+      await loadMCSamples([...new Set(allNotes.map(n=>n.instr))]);
+      await stg('s8',80,'Rendering...');
+      document.getElementById('mcAnim').classList.add('on');
+      $('pFill').classList.add('active');
+      const estMs=Math.max(5000,allNotes.length*15);
+      const stopTk=startProgressTicker(80,95,estMs);
+      rendBuf=await renderAudio(allNotes,(midiSrcNotes[midiSrcNotes.length-1]?.timeSec||30)+2,bpm,4);
+      stopTk();
+      $('pFill').classList.remove('active');
+      document.getElementById('mcAnim').classList.remove('on');
+      await stg('s9',92,'Encoding MP3...');
+      await ensureLame(); mp3Blob=encodeMP3(rendBuf); nbsBlob=buildNbs(allNotes,bpm,4);
+      $('pFill').style.width='100%';$('pPct').textContent='100%';
+      document.querySelectorAll('.st').forEach(s=>{s.classList.remove('a');s.classList.add('d');});
+      await sleep(200);
+      showResult(bpm);
+      // Show apply button after render
+      const ab=document.getElementById('btnApplyInstrs');
+      if(ab)ab.style.display='block';
+    }catch(e){
+      document.getElementById('mcAnim').classList.remove('on');
+      showErr('MIDI render failed: '+e.message);
+    }finally{
+      $('btnGo').disabled=false;$('pg').classList.remove('on');
+    }
+    return;
+  }
+  const bpm=useBpm*(speedPct/100);
   let stopTicker=null, cal={subdiv:4};
   try{
     await stg('s1',8,'Decoding audio');await sleep(80);
@@ -1421,7 +1689,8 @@ async function doConvert(){
     await loadMCSamples([...new Set(allNotes.map(n=>n.instr))]);
     await sleep(30);
     // s8: rendering — this takes longest, show animated ticker
-    await stg('s8',70,'Synthesising '+allNotes.length+' notes — please wait...');
+    await stg('s8',70,'Synthesising '+allNotes.length+' notes...');
+    document.getElementById('mcAnim').classList.add('on');
     $('pFill').classList.add('active');
     // Estimate render time: ~2s per minute of audio as baseline, min 8s, scales with note count
     const estRenderMs=Math.max(8000, srcBuf.duration*2000 + allNotes.length*15);
@@ -1438,11 +1707,14 @@ async function doConvert(){
     nbsBlob=buildNbs(allNotes,bpm,cal.subdiv);
     $('pFill').style.width='100%';$('pLbl').textContent='Done!';$('pPct').textContent='100%';
     document.querySelectorAll('.st').forEach(s=>{s.classList.remove('a');s.classList.add('d');});
+    document.getElementById('mcAnim').classList.remove('on');
     await sleep(300);
     showResult(bpm);
+    const _ab=document.getElementById('btnApplyInstrs');if(_ab)_ab.style.display='block';
   }catch(e){
     if(stopTicker)stopTicker();$('pFill').classList.remove('active');
     showErr('Error: '+e.message+'\n\nTip: Try a shorter song or reduce note density.');
+    document.getElementById('mcAnim').classList.remove('on');
     console.error(e);
   }finally{
     $('btnGo').disabled=false;$('pg').classList.remove('on');
@@ -1603,6 +1875,116 @@ async function rerender(){
 }
 function dlMp3(){if(!mp3Blob)return;const a=document.createElement('a');a.href=URL.createObjectURL(mp3Blob);a.download=(srcName||'song')+'-noteblocks.mp3';a.click();}
 function dlNbs(){if(!nbsBlob)return;const a=document.createElement('a');a.href=URL.createObjectURL(nbsBlob);a.download=(srcName||'song')+'.nbs';a.click();}
+
+// ── MIDI source tab
+const dzMidiEl=document.getElementById('dzMidi');
+const fiMidiEl=document.getElementById('fiMidi');
+if(fiMidiEl)fiMidiEl.addEventListener('change',e=>loadMidiFile(e.target.files[0]));
+if(dzMidiEl){
+  dzMidiEl.addEventListener('dragover',e=>{e.preventDefault();dzMidiEl.classList.add('ov');});
+  dzMidiEl.addEventListener('dragleave',()=>dzMidiEl.classList.remove('ov'));
+  dzMidiEl.addEventListener('drop',e=>{
+    e.preventDefault();dzMidiEl.classList.remove('ov');
+    const f=e.dataTransfer.files[0];
+    if(f&&(f.name.endsWith('.mid')||f.name.endsWith('.midi')))loadMidiFile(f);
+    else showErr('Please drop a MIDI file (.mid or .midi)');
+  });
+}
+
+let isMidiMode=false, midiSrcNotes=[];
+
+async function loadMidiFile(f){
+  if(!f)return; hideErr();
+  srcName=f.name.replace(/\.midi?$/i,'');
+  const chipMidi=document.getElementById('chipMidi');
+  const cnMidi=document.getElementById('cnMidi');
+  const csMidi=document.getElementById('csMidi');
+  if(cnMidi)cnMidi.textContent=f.name;
+  if(csMidi)csMidi.textContent=(f.size/1024).toFixed(1)+' KB';
+  if(chipMidi)chipMidi.style.display='flex';
+  $('res').classList.remove('on');
+  isMidiMode=true;
+  const applyBtn=document.getElementById('btnApplyInstrs');
+  if(applyBtn)applyBtn.style.display='none';
+  document.getElementById('instrWrap').style.display='none';
+  try{
+    const ab=await f.arrayBuffer();
+    midiSrcNotes=parseMidi(new Uint8Array(ab));
+    const dur=midiSrcNotes.length?Math.max(...midiSrcNotes.map(n=>n.timeSec+n.durSec)):0;
+    document.getElementById('dDur').textContent=fmt(dur)+'('+Math.round(dur)+'s)';
+    document.getElementById('dBpm').textContent=Math.round(midiSrcNotes._bpm||120);
+    document.getElementById('dKey').textContent='MIDI';
+    document.getElementById('dInstr').textContent='auto-detect';
+    $('dbar').classList.add('on');
+    $('bpmRow').style.display='flex';
+    document.getElementById('bpmSl').value=100;
+    document.getElementById('speedVal').textContent='100%';
+    // Fake a buf for pickInstrs — use default balanced instruments
+    const fakeBuf={duration:dur,sampleRate:44100,numberOfChannels:1,getChannelData:()=>new Float32Array(4096)};
+    previewInstrs(fakeBuf);
+    document.getElementById('instrWrap').style.display='block';
+    $('btnGo').disabled=false;
+  }catch(e){showErr('MIDI parse failed: '+e.message);console.error(e);}
+}
+
+function parseMidi(bytes){
+  const dv=new DataView(bytes.buffer);
+  let pos=0;
+  const r4=()=>{const v=dv.getUint32(pos);pos+=4;return v;};
+  const r2=()=>{const v=dv.getUint16(pos);pos+=2;return v;};
+  const r1=()=>bytes[pos++];
+  const rVLQ=()=>{let v=0,b;do{b=r1();v=(v<<7)|(b&0x7F);}while(b&0x80);return v;};
+  if(r4()!==0x4D546864)throw new Error('Not a valid MIDI file');
+  r4();r2();
+  const ntracks=r2(), tpqn=r2();
+  let bpm=500000;
+  const allEvents=[];
+  for(let t=0;t<ntracks;t++){
+    if(pos+8>bytes.length)break;
+    const hdr=r4();if(hdr!==0x4D54726B)break;
+    const chunkEnd=pos+r4();
+    let tick=0,lastStatus=0;
+    while(pos<chunkEnd-1){
+      try{
+        tick+=rVLQ();
+        let status=bytes[pos];
+        if(status&0x80){pos++;lastStatus=status;}else{status=lastStatus;}
+        const type=status>>4,ch=status&0xF;
+        if(type===0x9){const note=r1(),vel=r1();allEvents.push({tick,type:vel>0?'on':'off',note,vel,ch});}
+        else if(type===0x8){const note=r1();r1();allEvents.push({tick,type:'off',note,ch});}
+        else if(type===0xA||type===0xB){r1();r1();}
+        else if(type===0xC||type===0xD){r1();}
+        else if(type===0xE){r1();r1();}
+        else if(type===0xF){
+          const meta=r1(),len=rVLQ();
+          if(meta===0x51&&len===3){bpm=(r1()<<16)|(r1()<<8)|r1();}
+          else{pos+=len;}
+        }else break;
+      }catch(e){break;}
+    }
+    pos=chunkEnd;
+  }
+  const secPerTick=(bpm/1000000)/tpqn;
+  const active={};const notes=[];
+  allEvents.sort((a,b)=>a.tick-b.tick||a.type.localeCompare(b.type));
+  for(const ev of allEvents){
+    const key=`${ev.ch}_${ev.note}`;
+    if(ev.type==='on'){active[key]={tick:ev.tick,vel:(ev.vel||80)/127};}
+    else if(ev.type==='off'&&active[key]){
+      const start=active[key].tick;
+      let midi=ev.note;
+      while(midi<NB_MIN)midi+=12;while(midi>NB_MAX)midi-=12;
+      midi=Math.max(NB_MIN,Math.min(NB_MAX,midi));
+      const timeSec=start*secPerTick;
+      const durSec=Math.max(0.05,(ev.tick-start)*secPerTick);
+      notes.push({timeSec,durSec,midi,vel:active[key].vel,origNote:ev.note});
+      delete active[key];
+    }
+  }
+  notes._bpm=Math.round(60000000/bpm);
+  notes.sort((a,b)=>a.timeSec-b.timeSec);
+  return notes;
+}
 </script>
 </body>
 </html>
