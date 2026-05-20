@@ -532,8 +532,8 @@ input[type=range].mc-sl::-webkit-slider-thumb{
   </div>
 
   <div id="pane-midi" class="pane">
-    <div class="dz" id="dzMidi">
-      <input type="file" id="fiMidi" accept=".mid,.midi">
+    <div class="dz" id="dzMidi" onclick="document.getElementById('fiMidi').click();event.stopPropagation();">
+      <input type="file" id="fiMidi" accept=".mid,.midi" style="display:none">
       <span class="dz-icon">🎹</span>
       <div class="dz-t">DROP MIDI OR TAP TO BROWSE</div>
       <div class="dz-s">.mid / .midi · skips pitch detection, sounds better</div>
@@ -1304,27 +1304,22 @@ function quantiseAll(layers,bpm,subdiv){
 
 // ── Load MC samples from server
 async function loadMCSamples(instrs){
-  // Build available set from sounds-list, but don't block on it
-  let available=new Set();
-  try{
-    const r=await fetch('/sounds-list');
-    if(r.ok){const d=await r.json();(d.sounds||[]).forEach(s=>available.add(s));}
-  }catch(e){}
-  // Also always try the instrument directly as fallback
+  // Always attempt to fetch every instrument — no gating on sounds-list
+  // The sounds-list check was causing instruments to be skipped incorrectly
   await Promise.all(instrs.filter(i=>i&&i!=='none'&&!sampleBufs[i]).map(async instr=>{
-    // Only skip if sounds-list returned something AND this sound wasn't in it
-    if(available.size>0&&!available.has(instr+'.ogg'))return;
     try{
       const r=await fetch('/sounds/'+instr+'.ogg');
       if(!r.ok)throw new Error('HTTP '+r.status);
       const ab=await r.arrayBuffer();
       if(ab.byteLength<100)throw new Error('Empty response');
-      sampleBufs[instr]=await audioCtx.decodeAudioData(ab);
-      console.log('Loaded MC sound:',instr,'('+Math.round(ab.byteLength/1024)+'KB)');
-    }catch(e){console.warn('MC sound not available:',instr,'→ using synth fallback');}
+      sampleBufs[instr]=await audioCtx.decodeAudioData(ab.slice(0));
+      console.log('✓ MC sound:',instr,'('+Math.round(ab.byteLength/1024)+'KB)');
+    }catch(e){
+      console.warn('✗ MC sound not available:',instr,'- using synth');
+    }
   }));
   const loaded=instrs.filter(i=>sampleBufs[i]).length;
-  console.log('Sounds loaded:',loaded+'/'+instrs.length,Object.keys(sampleBufs));
+  console.log('MC sounds loaded:',loaded+'/'+instrs.length,'→',Object.keys(sampleBufs).join(', ')||'none');
 }
 
 
@@ -1498,8 +1493,8 @@ async function doConvert(){
   hideErr();$('btnGo').disabled=true;
   $('pg').classList.add('on');$('res').classList.remove('on');
   allNotes=[];
-  // MIDI shortcut — skip all pitch tracking
-  if(isMidiMode&&midiSrcNotes.length){
+  // MIDI shortcut — skip ALL pitch detection stages entirely
+  if(isMidiMode&&midiSrcNotes&&midiSrcNotes.length>0){
     try{
       await stg('s1',10,'Loading MIDI notes...');await sleep(50);
       const bpm=midiSrcNotes._bpm*(speedPct/100)||120;
@@ -1899,6 +1894,7 @@ async function loadMidiFile(f){
   if(chipMidi)chipMidi.style.display='flex';
   $('res').classList.remove('on');
   isMidiMode=true;
+  srcBuf=null; // prevent MP3 pitch-detection path from running
   const applyBtn=document.getElementById('btnApplyInstrs');
   if(applyBtn)applyBtn.style.display='none';
   document.getElementById('instrWrap').style.display='none';
